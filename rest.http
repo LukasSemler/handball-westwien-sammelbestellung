@@ -1,0 +1,88 @@
+####GET####
+GET http://localhost:2410/products
+
+##########
+GET http://localhost:2410/products/1
+
+########
+
+POST http://localhost:2410/orders
+Content-Type: application/json
+
+{
+  "email": "lukas.semler@gmail.com",
+  "telfonnummer": "+43 660 3914245",
+  "vornameEltern": "Jane ",
+  "nachnameEltern": "Doe",
+  "vornameSpieler": "Lukas ",
+  "nachnameSpieler": "Semler",
+  "summe": 26.79,
+  "jahrgang": "U13",
+  "prods": [
+    {
+      "p_id": 12,
+      "name": "Wave 26 Shorts Erwachsene",
+      "explaination": "Leider gibt es zu diesem Produkt noch keine Beschreibung :(",
+      "price": "16.79",
+      "color": "Schwarz",
+      "number": "2003656-01",
+      "image": "ProductImages/Wave 26 Shorts Erwachsene.jpeg",
+      "category": "Player",
+      "actualSize": "152",
+      "anzahl": "1"
+    },
+      {
+      "p_id": 2,
+      "name": "Name 2",
+      "explaination": "Leider gibt es zu diesem Produkt noch keine Beschreibung :(",
+      "price": "10",
+      "color": "Schwarz",
+      "number": "2003656-01",
+      "image": "ProductImages/Wave 26 Shorts Erwachsene.jpeg",
+      "category": "Player",
+      "actualSize": "152",
+      "anzahl": "2"
+    }
+  ]
+}
+
+#######
+
+
+GET http://localhost:2410/orders
+
+#######
+
+
+DELETE http://localhost:2410/products/21
+
+######
+
+GET http://localhost:2410/exportOrders
+
+
+######
+
+POST http://localhost:2410/login
+Content-Type: application/json
+
+{
+  "email": "admin@handball-westwien.at",
+  "password": "admin"
+}
+
+#####
+POST http://localhost:2410/products
+Content-Type: application/json
+
+{
+  "name": "Hoodie",
+  "artikelNummer": "ABCDEFG",
+  "farbe": "Grau",
+  "preis": "29.99",
+  "groessen": [ "XL", "L", "M" ],
+  "imageSchicken": { "datentyp": "jpeg" },
+  "linkImage": "/images/Hoodie.jpeg",
+  "category": { "id": 1, "name": "Casual" }
+}
+
