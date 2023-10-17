@@ -12,7 +12,7 @@ const getProductsDB = async () => {
     p.color AS color,
     p.productnumber AS number,
     p.previewimage as image,
-    array_agg(s.name) AS sizes,
+    array_agg(s.name ORDER BY s_id ASC) AS sizes,
     c.name as category
 FROM products p
 JOIN "productsVariation" pv ON p.p_id = pv."fk_product_ID"
@@ -38,7 +38,7 @@ const getProductDB = async (id) => {
     p.color AS color,
     p.productnumber AS number,
     p.previewimage as image,
-    array_agg(s.name) AS sizes,
+    array_agg(s.name ORDER BY s_id ASC) AS sizes,
     c.name as category
 FROM products p
 JOIN "productsVariation" pv ON p.p_id = pv."fk_product_ID"
@@ -65,7 +65,7 @@ const postOrderDB = async (order) => {
 
     // Insert into order
     const { rows } = await db.query(
-      'INSERT into "order" ("vornameEltern", "nachnameEltern", "vornameSpieler", "nachnameSpieler", email, telefonnummer, sum, jahrgang) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) returning *;',
+      'INSERT into "order" ("vornameEltern", "nachnameEltern", "vornameSpieler", "nachnameSpieler", email, telefonnummer, sum, jahrgang, zeitpunkt) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW()::timestamp) returning *;',
       [
         order.vornameEltern,
         order.nachnameEltern,
@@ -162,7 +162,10 @@ const getOrdersDB = async () => {
        p.explaination,
        p.color,
        p.productnumber,
-       p.previewimage
+       p.previewimage, 
+       o.zeitpunkt, 
+       o.bezahlt, 
+       o."zeitpunktBezahlt"
 from "order" o
          JOIN "orderDetail" oD on o.o_id = oD.fk_order
          JOIN products p on p.p_id = oD.fk_product`);
@@ -373,6 +376,33 @@ const patchProductDB = async (
   }
 };
 
+const setBezahltDB = async (id) => {
+  try {
+    const { rows } = await query(
+      'UPDATE "order" SET bezahlt = true, "zeitpunktBezahlt" = NOW()::timestamp where o_id = $1 returning *;',
+      [id],
+    );
+
+    if (rows[0]) return rows[0];
+    return false;
+  } catch (error) {
+    console.log(error);
+  }
+};
+const setOffenDB = async (id) => {
+  try {
+    const { rows } = await query(
+      'UPDATE "order" SET bezahlt = false, "zeitpunktBezahlt" = null where o_id = $1 returning *;',
+      [id],
+    );
+
+    if (rows[0]) return rows[0];
+    return false;
+  } catch (error) {
+    console.log(error);
+  }
+};
+
 export {
   getProductsDB,
   getProductDB,
@@ -385,4 +415,6 @@ export {
   loginDB,
   postProductDB,
   patchProductDB,
+  setBezahltDB,
+  setOffenDB,
 };

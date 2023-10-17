@@ -14,6 +14,8 @@ import {
   postProductImage,
   postProduct,
   patchProduct,
+  setBezahlt,
+  setOffen,
 } from '../controllers/ProductsController.js';
 
 const router = express.Router();
@@ -38,5 +40,8 @@ router.get('/frist', asyncHandler(getFrist));
 router.get('/exportOrders', asyncHandler(exportOrders));
 
 router.post('/login', asyncHandler(login));
+
+router.patch('/setBezahlt/:id', asyncHandler(setBezahlt));
+router.patch('/setOffen/:id', asyncHandler(setOffen));
 
 export default router;

@@ -10,13 +10,14 @@ import {
   loginDB,
   postProductDB,
   patchProductDB,
+  setBezahltDB,
+  setOffenDB,
 } from '../models/ProductsModel.js';
 
 import fs from 'fs';
 import path from 'path';
 
 const dirname = path.resolve();
-
 
 const getProducts = async (req, res) => {
   const result = await getProductsDB();
@@ -153,6 +154,24 @@ const patchProduct = async (req, res) => {
   return res.status(500).send('Internal Server Error');
 };
 
+const setBezahlt = async (req, res) => {
+  const { id } = req.params;
+
+  const result = await setBezahltDB(id);
+
+  if (result) return res.status(200).json(result);
+  return res.status(500).send('Internal Server Error');
+};
+
+const setOffen = async (req, res) => {
+  const { id } = req.params;
+
+  const result = await setOffenDB(id);
+
+  if (result) return res.status(200).json(result);
+  return res.status(500).send('Internal Server Error');
+};
+
 export {
   getProducts,
   getProduct,
@@ -166,4 +185,6 @@ export {
   postProductImage,
   postProduct,
   patchProduct,
+  setBezahlt,
+  setOffen,
 };
