@@ -77,7 +77,43 @@ const getFrist = async (req, res) => {
 };
 
 const exportOrders = async (req, res) => {
-  const result = await exportOrdersDB();
+  const { von, bis } = req.query;
+  console.log(von, bis);
+
+  let result;
+
+  //leer
+  if (von == 'null' && bis == 'null') {
+    console.log('IF');
+    result = await exportOrdersDB(null, null);
+  }
+  // Von bis leer
+  else if (von && bis == 'null') {
+    const vonJS = new Date(von);
+    const vonPSQL = vonJS.toISOString().slice(0, 19).replace('T', ' ');
+
+    const bisJS = new Date();
+    const bisPSQL = bisJS.toISOString().slice(0, 19).replace('T', ' ');
+
+    result = await exportOrdersDB(vonPSQL, bisPSQL);
+  }
+  //leer bis
+  else if (von == 'null' && bis) {
+    const bisJS = new Date(bis);
+    const bisPSQL = bisJS.toISOString().slice(0, 19).replace('T', ' ');
+
+    result = await exportOrdersDB(null, bisPSQL);
+  }
+  //alles
+  else {
+    const vonJS = new Date(von);
+    const vonPSQL = vonJS.toISOString().slice(0, 19).replace('T', ' ');
+
+    const bisJS = new Date(bis);
+    const bisPSQL = bisJS.toISOString().slice(0, 19).replace('T', ' ');
+
+    result = await exportOrdersDB(vonPSQL, bisPSQL);
+  }
 
   if (result) return res.status(200).json(result);
   return res.status(500).send('Internal Server Error');

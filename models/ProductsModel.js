@@ -170,7 +170,7 @@ const getOrdersDB = async () => {
        o."zeitpunktBezahlt"
 from "order" o
          JOIN "orderDetail" oD on o.o_id = oD.fk_order
-         JOIN products p on p.p_id = oD.fk_product`);
+         JOIN products p on p.p_id = oD.fk_product ORDER BY o.o_id ASC`);
 
   if (rows[0]) {
     return rows;
@@ -227,19 +227,87 @@ const getFristDB = async () => {
   return false;
 };
 
-const exportOrdersDB = async () => {
-  const { rows } =
-    await query(`SELECT p.productnumber                                        as Artikelnummer,
+const exportOrdersDB = async (von, bis) => {
+  let erg;
+
+  //leer
+  if (von != null && bis != null) {
+    const { rows } = await query(
+      `SELECT p.productnumber                                        as Artikelnummer,
        p.name                                                 as "Bezeichnung Artikel",
        (SELECT name from sizes where oD.fk_size = sizes.s_id) as "Groesse",
        oD.anzahl                                              as "Anzahl",
-       p.price
+       p.price                                                as "Preis",
+       concat(o."vornameEltern", ' ', o."nachnameEltern")     as "Eltern",
+       concat(o."vornameSpieler", ' ', o."nachnameSpieler")   as "Spieler",
+       o.email                                                as "E-Mail",
+       o.telefonnummer                                        as "Telefonnummer",
+       o.bezahlt                                              as "bezahlt",
+       CASE
+           WHEN o.bezahlt = true THEN TO_CHAR(o."zeitpunktBezahlt", 'DD.MM.YYYY HH:MI')
+           ELSE 'Offen' END
+                                                              as "zeitpunkt Bezahlt"
 from "order" o
          JOIN "orderDetail" oD on o.o_id = oD.fk_order
-         JOIN products p on p.p_id = oD.fk_product`);
+         JOIN products p on p.p_id = oD.fk_product 
+WHERE o.zeitpunkt >= $1 and o.zeitpunkt <= $2
+order by o.o_id`,
+      [von, bis],
+    );
 
-  if (rows[0]) {
-    const csv = convertArrayOfObjectsToCSV(rows);
+    erg = rows;
+  } else if (!von && bis) {
+    const { rows } = await query(
+      `SELECT p.productnumber                                        as Artikelnummer,
+       p.name                                                 as "Bezeichnung Artikel",
+       (SELECT name from sizes where oD.fk_size = sizes.s_id) as "Groesse",
+       oD.anzahl                                              as "Anzahl",
+       p.price                                                as "Preis",
+       concat(o."vornameEltern", ' ', o."nachnameEltern")     as "Eltern",
+       concat(o."vornameSpieler", ' ', o."nachnameSpieler")   as "Spieler",
+       o.email                                                as "E-Mail",
+       o.telefonnummer                                        as "Telefonnummer",
+       o.bezahlt                                              as "bezahlt",
+       CASE
+           WHEN o.bezahlt = true THEN TO_CHAR(o."zeitpunktBezahlt", 'DD.MM.YYYY HH:MI')
+           ELSE 'Offen' END
+                                                              as "zeitpunkt Bezahlt"
+from "order" o
+         JOIN "orderDetail" oD on o.o_id = oD.fk_order
+         JOIN products p on p.p_id = oD.fk_product 
+         WHERE o.zeitpunkt <= $1
+order by o.o_id`,
+      [bis],
+    );
+
+    erg = rows;
+  } else {
+    const { rows } = await query(
+      `SELECT p.productnumber                                        as Artikelnummer,
+       p.name                                                 as "Bezeichnung Artikel",
+       (SELECT name from sizes where oD.fk_size = sizes.s_id) as "Groesse",
+       oD.anzahl                                              as "Anzahl",
+       p.price                                                as "Preis",
+       concat(o."vornameEltern", ' ', o."nachnameEltern")     as "Eltern",
+       concat(o."vornameSpieler", ' ', o."nachnameSpieler")   as "Spieler",
+       o.email                                                as "E-Mail",
+       o.telefonnummer                                        as "Telefonnummer",
+       o.bezahlt                                              as "bezahlt",
+       CASE
+           WHEN o.bezahlt = true THEN TO_CHAR(o."zeitpunktBezahlt", 'DD.MM.YYYY HH:MI')
+           ELSE 'Offen' END
+                                                              as "zeitpunkt Bezahlt"
+from "order" o
+         JOIN "orderDetail" oD on o.o_id = oD.fk_order
+         JOIN products p on p.p_id = oD.fk_product 
+order by o.o_id`,
+    );
+
+    erg = rows;
+  }
+
+  if (erg[0]) {
+    const csv = convertArrayOfObjectsToCSV(erg);
     return csv;
   }
   return false;
