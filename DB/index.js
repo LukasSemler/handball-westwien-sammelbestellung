@@ -3,8 +3,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const connectionString =
-  'postgres://LukasSemler:8kpKtV5Ggvsm@ep-shrill-smoke-70167934.eu-central-1.aws.neon.tech/neondb';
+const connectionString = process.env.DATABASE_URL;
 
 // const pool = new pg.Pool();
 const pool = new pg.Pool({

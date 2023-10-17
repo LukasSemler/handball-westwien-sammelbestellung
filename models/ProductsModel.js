@@ -1,7 +1,9 @@
 import { query, pool } from '../DB/index.js';
 import postmark from 'postmark';
 
-const emailClient = new postmark.ServerClient('313fee21-10d9-4d96-b3d4-75ea5a35ab20');
+const emailToken = process.env.postmarkToken;
+console.log(emailToken);
+const emailClient = new postmark.ServerClient(emailToken);
 
 const getProductsDB = async () => {
   const { rows } = await query(`SELECT
@@ -125,6 +127,7 @@ const postOrderDB = async (order) => {
       TemplateAlias: 'orderConfirmation',
       TemplateModel: {
         name: `${order.vornameEltern} ${order.nachnameEltern}`,
+        kontonummer: 'AT22 00000000000000',
         receipt_id: `Bestellnummer: ${rows[0].o_id}`,
         date: datum,
         receipt_details: bestellteProdukte,
