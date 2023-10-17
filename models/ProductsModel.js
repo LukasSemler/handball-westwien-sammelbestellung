@@ -125,7 +125,6 @@ const postOrderDB = async (order) => {
       TemplateAlias: 'orderConfirmation',
       TemplateModel: {
         name: `${order.vornameEltern} ${order.nachnameEltern}`,
-        kontonummer: 'AT22 00000000000000',
         receipt_id: `Bestellnummer: ${rows[0].o_id}`,
         date: datum,
         receipt_details: bestellteProdukte,
