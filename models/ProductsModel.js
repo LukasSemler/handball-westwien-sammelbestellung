@@ -3,7 +3,7 @@ import postmark from 'postmark';
 
 const emailToken = process.env.postmarkToken;
 console.log(emailToken);
-const emailClient = new postmark.ServerClient(emailToken);
+const emailClient = new postmark.ServerClient('313fee21-10d9-4d96-b3d4-75ea5a35ab20');
 
 const getProductsDB = async () => {
   const { rows } = await query(`SELECT
@@ -13,6 +13,7 @@ const getProductsDB = async () => {
     p.price AS price,
     p.color AS color,
     p.productnumber AS number,
+    p.productnumberkempa as numberKempa,
     p.previewimage as image,
     array_agg(s.name ORDER BY s_id ASC) AS sizes,
     c.name as category
@@ -39,6 +40,7 @@ const getProductDB = async (id) => {
     p.price AS price,
     p.color AS color,
     p.productnumber AS number,
+    p.productnumberkempa as numberKempa,
     p.previewimage as image,
     array_agg(s.name ORDER BY s_id ASC) AS sizes,
     c.name as category
@@ -293,6 +295,7 @@ order by o.o_id`,
   } else {
     const { rows } = await query(
       `SELECT p.productnumber                                        as Artikelnummer,
+       p.productnumberkempa                                   as ArtikelnummerKempa,
        p.name                                                 as "Bezeichnung Artikel",
        (SELECT name from sizes where oD.fk_size = sizes.s_id) as "Groesse",
        oD.anzahl                                              as "Anzahl",
@@ -363,6 +366,7 @@ function convertArrayOfObjectsToCSV(data) {
 const postProductDB = async (
   name,
   artikelNummer,
+  artikelNummerKempa,
   farbe,
   preis,
   groessen,
@@ -377,9 +381,9 @@ const postProductDB = async (
 
     //Zuerst Product erstellen
     const { rows } = await db.query(
-      `INSERT INTO products (name, price, explaination, color, productnumber, previewimage, "fk_categories_ID") VALUES 
-      ($1, $2, 'Leider gibt es zu diesem Produkt noch keine Beschreibung :(', $3, $4, $5, $6) returning *;`,
-      [name, preis, farbe, artikelNummer, linkImage, category.id],
+      `INSERT INTO products (name, price, explaination, color, productnumber, productnumberkempa, previewimage, "fk_categories_ID") VALUES 
+      ($1, $2, 'Leider gibt es zu diesem Produkt noch keine Beschreibung :(', $3, $4, $5, $6, $7) returning *;`,
+      [name, preis, farbe, artikelNummer, artikelNummerKempa, linkImage, category.id],
     );
 
     if (rows[0]) {
@@ -410,6 +414,7 @@ const postProductDB = async (
 const patchProductDB = async (
   name,
   artikelNummer,
+  artikelNummerKempa,
   farbe,
   preis,
   groessen,
@@ -422,8 +427,8 @@ const patchProductDB = async (
     await db.query('BEGIN');
 
     const { rows } = await query(
-      'UPDATE products SET name = $1, productnumber = $2, color = $3, price = $4, previewimage = $5, "fk_categories_ID" = (SELECT c.c_id from categories c where c.name = $6 ) where p_id = $7 returning *;',
-      [name, artikelNummer, farbe, preis, imageSchicken, category.name, id],
+      'UPDATE products SET name = $1, productnumber = $2, productnumberkempa = $8, color = $3, price = $4, previewimage = $5, "fk_categories_ID" = (SELECT c.c_id from categories c where c.name = $6 ) where p_id = $7 returning *;',
+      [name, artikelNummer, farbe, preis, imageSchicken, category.name, id, artikelNummerKempa],
     );
 
     if (rows[0]) {

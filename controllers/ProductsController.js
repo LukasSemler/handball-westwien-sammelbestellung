@@ -150,12 +150,22 @@ const postProductImage = async (req, res) => {
 };
 
 const postProduct = async (req, res) => {
-  const { name, artikelNummer, farbe, preis, groessen, imageSchicken, linkImage, category } =
-    req.body;
+  const {
+    name,
+    artikelNummer,
+    artikelNummerKempa,
+    farbe,
+    preis,
+    groessen,
+    imageSchicken,
+    linkImage,
+    category,
+  } = req.body;
 
   const result = await postProductDB(
     name,
     artikelNummer,
+    artikelNummerKempa,
     farbe,
     preis,
     groessen,
@@ -171,13 +181,14 @@ const postProduct = async (req, res) => {
 const patchProduct = async (req, res) => {
   const { id } = req.params;
 
-  const { name, artikelNummer, farbe, preis, groessen, linkImage, category } = req.body;
+  const { name, artikelNummer, artikelNummerKempa, farbe, preis, groessen, linkImage, category } = req.body;
 
   console.log(req.body);
 
   const result = await patchProductDB(
     name,
     artikelNummer,
+    artikelNummerKempa,
     farbe,
     preis,
     groessen,
