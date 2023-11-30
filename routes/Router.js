@@ -16,6 +16,8 @@ import {
   patchProduct,
   setBezahlt,
   setOffen,
+  getSammelbestellung,
+  patchFrist,
 } from '../controllers/ProductsController.js';
 
 const router = express.Router();
@@ -44,4 +46,6 @@ router.post('/login', asyncHandler(login));
 router.patch('/setBezahlt/:id', asyncHandler(setBezahlt));
 router.patch('/setOffen/:id', asyncHandler(setOffen));
 
+router.get('/getSammelbestellungen', asyncHandler(getSammelbestellung));
+router.patch('/frist', asyncHandler(patchFrist));
 export default router;

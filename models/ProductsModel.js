@@ -67,9 +67,17 @@ const postOrderDB = async (order) => {
     // Open Transaction
     await db.query('BEGIN');
 
+    //find the active Sammelbestellung
+    const { rows: rowsSammelbestellung } = await query(
+      "SELECT * FROM sammelbestellung where status = 'active';",
+    );
+
+    if (!rowsSammelbestellung[0]) {
+    }
+
     // Insert into order
     const { rows } = await db.query(
-      'INSERT into "order" ("vornameEltern", "nachnameEltern", "vornameSpieler", "nachnameSpieler", email, telefonnummer, sum, jahrgang, zeitpunkt) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW()::timestamp) returning *;',
+      'INSERT into "order" ("vornameEltern", "nachnameEltern", "vornameSpieler", "nachnameSpieler", email, telefonnummer, sum, jahrgang, zeitpunkt, fk_s_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW()::timestamp, $9) returning *;',
       [
         order.vornameEltern,
         order.nachnameEltern,
@@ -79,16 +87,11 @@ const postOrderDB = async (order) => {
         order.telfonnummer,
         Number(order.summe),
         order.jahrgang,
+        rowsSammelbestellung[0].s_id,
       ],
     );
 
     db.query('COMMIT');
-
-    if (!rows[0]) {
-      console.log('ROLLBACK');
-      await db.query('ROLLBACK');
-      return false;
-    }
 
     if (!rows[0]) {
       console.log('ROLLBACK');
@@ -116,7 +119,7 @@ const postOrderDB = async (order) => {
     for (const product of order.prods) {
       bestellteProdukte.push({
         produktname: product.name,
-        preis: product.price,
+        preis: product.price * product.anzahl,
         anzahl: product.anzahl,
         size: product.actualSize,
       });
@@ -128,7 +131,7 @@ const postOrderDB = async (order) => {
       To: order.email,
       TemplateAlias: 'orderConfirmation',
       TemplateModel: {
-        name: `${order.vornameEltern} ${order.nachnameEltern}`,
+        name: order.vornameEltern,
         kontonummer: 'AT22 00000000000000',
         receipt_id: `Bestellnummer: ${rows[0].o_id}`,
         date: datum,
@@ -178,7 +181,8 @@ const getOrdersDB = async () => {
        p.previewimage, 
        o.zeitpunkt, 
        o.bezahlt, 
-       o."zeitpunktBezahlt"
+       o."zeitpunktBezahlt",
+       o.fk_s_id
 from "order" o
          JOIN "orderDetail" oD on o.o_id = oD.fk_order
          JOIN products p on p.p_id = oD.fk_product ORDER BY o.o_id ASC`);
@@ -211,31 +215,29 @@ const deleteProductsDB = async (id) => {
   }
 };
 
-const setFristDB = async (zeitpunkt) => {
-  const { rows } = await query('SELECT * FROM info');
-
-  if (rows[0]) {
-    const { rows: rows2 } = await query(
-      'UPDATE info set zeitpunkt = $1 WHERE i_id = $2 returning *;',
-      [zeitpunkt, rows[0].i_id],
+const setFristDB = async (von, bis, status) => {
+  try {
+    const { rows } = await query(
+      "INSERT INTO sammelbestellung (von, bis, status) SELECT $1, $2, $3 WHERE NOT EXISTS (SELECT 1 FROM sammelbestellung WHERE status = 'active') returning *;",
+      [von, bis, status],
     );
 
-    if (rows2[0]) return true;
-  } else {
-    const { rows } = await query('INSERT INTO info (zeitpunkt) VALUES ($1) returning *;', [
-      zeitpunkt,
-    ]);
-
-    if (rows[0]) return true;
+    if (rows[0]) return rows[0];
+    return false;
+  } catch (error) {
+    console.log(error);
   }
-  return false;
 };
 
 const getFristDB = async () => {
-  const { rows } = await query('SELECT * FROM info');
+  try {
+    const { rows } = await query("SELECT * FROM sammelbestellung where status = 'active';");
 
-  if (rows[0]) return rows;
-  return false;
+    if (rows[0]) return rows[0];
+    return [];
+  } catch (error) {
+    return false;
+  }
 };
 
 const exportOrdersDB = async (von, bis) => {
@@ -487,6 +489,25 @@ const setOffenDB = async (id) => {
   }
 };
 
+const getSammelbestellungDB = async () => {
+  const { rows } = await query(
+    'SELECT s_id, von, bis, status from sammelbestellung order by s_id ASC;',
+  );
+
+  if (rows[0]) return rows;
+  return [];
+};
+
+const patchFristDB = async (status, oldStatus) => {
+  const { rows } = await query(
+    'UPDATE sammelbestellung Set status = $1 where status = $2 returning *;',
+    [status, oldStatus],
+  );
+
+  if (rows[0]) return rows[0];
+  return false;
+};
+
 export {
   getProductsDB,
   getProductDB,
@@ -501,4 +522,6 @@ export {
   patchProductDB,
   setBezahltDB,
   setOffenDB,
+  getSammelbestellungDB,
+  patchFristDB,
 };

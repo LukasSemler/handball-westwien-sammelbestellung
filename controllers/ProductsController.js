@@ -12,6 +12,8 @@ import {
   patchProductDB,
   setBezahltDB,
   setOffenDB,
+  getSammelbestellungDB,
+  patchFristDB,
 } from '../models/ProductsModel.js';
 
 import fs from 'fs';
@@ -61,9 +63,9 @@ const deleteProduct = async (req, res) => {
 };
 
 const setFrist = async (req, res) => {
-  const { zeitpunkt } = req.body;
+  const { von, bis, status } = req.body;
 
-  const result = await setFristDB(zeitpunkt);
+  const result = await setFristDB(von, bis, status);
 
   if (result) return res.status(200).send('Frist wurde erfolgreich gesetzt');
   return res.status(500).send('Fehler beim setzen der Frist');
@@ -181,7 +183,8 @@ const postProduct = async (req, res) => {
 const patchProduct = async (req, res) => {
   const { id } = req.params;
 
-  const { name, artikelNummer, artikelNummerKempa, farbe, preis, groessen, linkImage, category } = req.body;
+  const { name, artikelNummer, artikelNummerKempa, farbe, preis, groessen, linkImage, category } =
+    req.body;
 
   console.log(req.body);
 
@@ -219,6 +222,24 @@ const setOffen = async (req, res) => {
   return res.status(500).send('Internal Server Error');
 };
 
+const getSammelbestellung = async (req, res) => {
+  const result = await getSammelbestellungDB();
+
+  if (result) return res.status(200).json(result);
+  return res.status(500).send('Internal Server Error');
+};
+
+const patchFrist = async (req, res) => {
+  const { status, oldStatus } = req.body;
+
+  console.log(status, ' ', oldStatus);
+
+  const result = await patchFristDB(status, oldStatus);
+
+   if (result) return res.status(200).json(result);
+   return res.status(500).send('Internal Server Error');
+};
+
 export {
   getProducts,
   getProduct,
@@ -234,4 +255,6 @@ export {
   patchProduct,
   setBezahlt,
   setOffen,
+  getSammelbestellung,
+  patchFrist,
 };
