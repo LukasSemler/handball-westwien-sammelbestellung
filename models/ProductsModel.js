@@ -77,7 +77,7 @@ const postOrderDB = async (order) => {
 
     // Insert into order
     const { rows } = await db.query(
-      'INSERT into "order" ("vornameEltern", "nachnameEltern", "vornameSpieler", "nachnameSpieler", email, telefonnummer, sum, jahrgang, zeitpunkt, fk_s_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW()::timestamp, $9) returning *;',
+      'INSERT into "order" ("vornameEltern", "nachnameEltern", "vornameSpieler", "nachnameSpieler", email, telefonnummer, sum, jahrgang, zeitpunkt, fk_s_id, bezahlt, "zeitpunktBezahlt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW()::timestamp, $9, true, NOW()) returning *;',
       [
         order.vornameEltern,
         order.nachnameEltern,

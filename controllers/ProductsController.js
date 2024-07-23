@@ -18,8 +18,12 @@ import {
 
 import fs from 'fs';
 import path from 'path';
+import Stripe from 'stripe';
+const stripe = new Stripe(process.env.STRIPE_API_KEY);
 
 const dirname = path.resolve();
+
+let orderInformation = null; //Hier werden wichtige Informationen bzgl. Order gespeichert.
 
 const getProducts = async (req, res) => {
   const result = await getProductsDB();
@@ -36,30 +40,13 @@ const getProduct = async (req, res) => {
   return res.status(500).send('Internal Server Error');
 };
 
-const postOrder = async (req, res) => {
-  const daten = req.body;
-  console.log(daten);
-
-  const result = await postOrderDB(daten);
-
-  if (result) return res.status(200).json(result);
-  return res.status(500).send('Error');
-};
-
-const getOrders = async (req, res) => {
-  const result = await getOrdersDB();
-
-  if (result) return res.status(200).json(result);
-  return res.status(500).send('Internal Server Error');
-};
-
 const deleteProduct = async (req, res) => {
   const { id } = req.params;
 
   const result = await deleteProductsDB(id);
 
   if (result) return res.status(200).send('Product wurde erfolgreich gelöscht');
-  return res.status(500).send('Fehler beim Löschen des Products');
+  return res.status(400).send('Fehler beim Löschen des Products');
 };
 
 const setFrist = async (req, res) => {
@@ -68,14 +55,14 @@ const setFrist = async (req, res) => {
   const result = await setFristDB(von, bis, status);
 
   if (result) return res.status(200).send('Frist wurde erfolgreich gesetzt');
-  return res.status(500).send('Fehler beim setzen der Frist');
+  return res.status(400).send('Fehler beim setzen der Frist');
 };
 
 const getFrist = async (req, res) => {
   const result = await getFristDB();
 
   if (result) return res.status(200).json(result);
-  return res.status(500).send('Internal Server Error');
+  return res.status(400).send('Internal Server Error');
 };
 
 const exportOrders = async (req, res) => {
@@ -118,7 +105,7 @@ const exportOrders = async (req, res) => {
   }
 
   if (result) return res.status(200).json(result);
-  return res.status(500).send('Internal Server Error');
+  return res.status(400).send('Internal Server Error');
 };
 
 const login = async (req, res) => {
@@ -127,7 +114,7 @@ const login = async (req, res) => {
   const result = await loginDB(email, password);
 
   if (result) return res.status(200).json(result);
-  return res.status(500).send('Internal Server Error');
+  return res.status(400).send('Internal Server Error');
 };
 
 const postProductImage = async (req, res) => {
@@ -236,14 +223,141 @@ const patchFrist = async (req, res) => {
 
   const result = await patchFristDB(status, oldStatus);
 
-   if (result) return res.status(200).json(result);
-   return res.status(500).send('Internal Server Error');
+  if (result) return res.status(200).json(result);
+  return res.status(500).send('Internal Server Error');
+};
+
+const orderPay = async (req, res) => {
+  console.log(req.body);
+  // VORLAGE
+  // line_items: [
+  //   {
+  //     price_data: {
+  //       unit_amount: 5000,
+  //       product_data: {
+  //         name: 'T-shirt',
+  //       },
+  //       currency: 'eur',
+  //     },
+  //     quantity: 2,
+  //   },
+  // ],
+
+  //Orderinformationen setzen
+  orderInformation = req.body;
+
+  const buyProductsList = [];
+  //Stripe Produktliste für gekaufte Produkte zusammenstellen
+  orderInformation.prods.forEach((produkt) => {
+    //Item zusammenstellen
+    buyProductsList.push({
+      price_data: {
+        unit_amount: produkt.price.includes('.')
+          ? Number(produkt.price.replace('.', '').replace(',', ''))
+          : Number(produkt.price.replace('.', '').replace(',', '')) * 100,
+        product_data: {
+          name: produkt.name,
+        },
+        currency: 'eur',
+      },
+      quantity: Number(produkt.anzahl),
+    });
+  });
+
+  //AUFRUNDEN
+  if (req.body.aufrundenValue) {
+    const aufrundDifferenzwert = Number(orderInformation.aufrundenValue)
+      .toFixed(2)
+      .toString()
+      .replace('.', '');
+
+    buyProductsList.push({
+      price_data: {
+        unit_amount: Number(aufrundDifferenzwert),
+        product_data: {
+          name: 'Freiwilliges Aufrunden',
+        },
+        currency: 'eur',
+      },
+      quantity: 1,
+    });
+  }
+
+  //Stripe-Checkout fertigstellen
+  const session = await stripe.checkout.sessions.create({
+    payment_method_types: ['card', 'eps'],
+    submit_type: 'pay',
+    line_items: buyProductsList,
+    mode: 'payment',
+    success_url: `${
+      process.env.SERVER_DEVMODE ? `http://localhost:${process.env.SERVER_PORT}` : `${req.baseUrl}`
+    }/orderPaySuccess?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${
+      process.env.SERVER_DEVMODE ? `http://localhost:${process.env.SERVER_PORT}` : `${req.baseUrl}`
+    }/orderPayFailed?session_id={CHECKOUT_SESSION_ID}`,
+    automatic_tax: { enabled: true },
+  });
+
+  //Stripe-Link ausgeben
+  res.send(session.url);
+};
+
+const orderPaySuccess = async (req, res) => {
+  console.log('Payment Success!!!');
+
+  //Customer bekommen
+  const session = await stripe.checkout.sessions.retrieve(req.query.session_id);
+
+  if (session.status == 'complete') {
+    console.log(orderInformation);
+
+    //order in der Datenbank speichern & Bestellbestätigung per Mail senden
+    const result = await postOrderDB(orderInformation);
+
+    orderInformation = null; //Orderinformationen wieder löschen (Speicher freigeben)
+
+    if (result) {
+      //Orderinformationen wieder löschen (Speicher freigeben)
+      return res.redirect(
+        `${
+          process.env.SERVER_DEVMODE
+            ? `http://localhost:${process.env.SERVER_PORT}`
+            : `${req.baseUrl}`
+        }/#/orderconfirmation?confirmationType=Produktkauf`,
+      );
+    }
+
+    //WENN FEHLER
+    res
+      .status(500)
+      .send(
+        'Fehler beim Speichern der Bestellung in der Datenbank aufgetreten (ProductsController -> paySuccess())',
+      );
+  } else {
+    res.send('<h1>Leider ist beim Zahlen ein Fehler aufgetreten (paySuccess)</h1>');
+  }
+};
+
+const orderPayFailed = async (req, res) => {
+  orderInformation = null; //Orderinformationen wieder löschen (Speicher freigeben)
+  console.log('Payment Failed!!!');
+  res.redirect(
+    `${
+      process.env.SERVER_DEVMODE ? `http://localhost:${process.env.SERVER_PORT}` : `${req.baseUrl}`
+    }/#/ordercancellation?confirmationType=Produktkauf`,
+  );
+};
+
+const getOrders = async (req, res) => {
+  const result = await getOrdersDB();
+
+  if (result) return res.status(200).json(result);
+  return res.status(400).send('Internal Server Error');
 };
 
 export {
   getProducts,
   getProduct,
-  postOrder,
   getOrders,
   deleteProduct,
   setFrist,
@@ -257,4 +371,7 @@ export {
   setOffen,
   getSammelbestellung,
   patchFrist,
+  orderPay,
+  orderPaySuccess,
+  orderPayFailed,
 };

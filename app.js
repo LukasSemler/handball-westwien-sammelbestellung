@@ -16,7 +16,7 @@ config();
 //Routen
 import customerRoutes from './routes/Router.js';
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.SERVER_PORT || 5000;
 
 const app = express();
 
@@ -37,15 +37,15 @@ app.use(express.urlencoded({ extended: false }));
 app.use(HttpsRedirectHandler); //Wenn der User versucht auf dei Heroku-HTTP-URL zuzugreifen, wird er auf die HTTPS-URL umgeleitet
 
 //Express-Sessions
-app.use(
-  session({
-    name: 'FreifachAnmeldung',
-    secret: 'FreifaecherAmeldung',
-    resave: true,
-    saveUninitialized: true,
-    cookie: { maxAge: 1000 * 60 * 60 * 24 },
-  }),
-);
+// app.use(
+//   session({
+//     name: 'WW-Sammelbestellung',
+//     secret: 'WW-Sammelbestellung',
+//     resave: true,
+//     saveUninitialized: true,
+//     cookie: { maxAge: 1000 * 60 * 60 * 24 }, //1Tag
+//   }),
+// );
 
 //Normale Server-Routen
 app.use('/', customerRoutes);

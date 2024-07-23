@@ -1,3 +1,5 @@
+GET http://localhost:2410/test
+
 ####GET####
 GET http://localhost:2410/products
 
@@ -86,3 +88,129 @@ Content-Type: application/json
   "category": { "id": 1, "name": "Casual" }
 }
 
+########
+GET http://localhost:2410/products/1
+
+########
+
+POST http://localhost:2410/person
+Content-Type: application/json
+
+{
+  "vorname": "Neuer",
+  "nachname": "Spieler",
+  "email": "neuer.spieler@gmail.com",
+  "telefonnummer": "066039134256",
+  "birthdate": "2012-07-06T16:27:00.000Z",
+  "street": "Mariahilferstrasse",
+  "houseNumber": "1",
+  "postalCode": "1060",
+  "city": "Wien",
+  "newsletter": true,
+  "notes": "",
+  "rollen": [
+    "Spieler"
+  ],
+  "player_infos": {
+    "mitgliederbeitragssumme": "370",
+    "mannschaft": "U12"
+  },
+  "parents": [
+    {
+      "vorname": "Neue",
+      "nachname": "Mama",
+      "email": "neue.mutter@gmail.com",
+      "telefonnummer": "067012343454",
+      "birthdate": "1972-01-14T17:27:00.000Z",
+      "same_adress": true,
+      "street": "Mariahilferstrasse",
+      "houseNumber": "1",
+      "postalCode": "1060",
+      "city": "Wien",
+      "newsletter": true,
+      "notes": "Hilft beim Buffet",
+      "rollen": [
+        "Eltern",
+        "Buffet"
+      ]
+    },
+    {
+      "p_id": 14,
+      "vorname": "Thomas",
+      "nachname": "Ruzek",
+      "email": "t.ruzek@handball-westwien.com",
+      "geburtsdatum": "2000-07-27T22:00:00.000Z",
+      "adresse_fk": 10,
+      "mannschaft_fk": null,
+      "eintrittsdatum": "2024-07-12T22:00:00.000Z",
+      "telefonnummer": "06601423567",
+      "uww_nummer": null,
+      "mitgliedsbeitrag_fk": null,
+      "status": "Finanzen + Sammelbestellung",
+      "newsletter": true,
+      "street": "Keine Ahung",
+      "hausnummer": "111",
+      "plz": "1140",
+      "ort": "Wien",
+      "mannschaftsname": null,
+      "mitgliederbeitragssumme": null,
+      "mitgliederbeitragssummebezahlt": null,
+      "rollen": [
+        "Eltern",
+        "Sponsoren",
+        "Vorstand"
+      ]
+    }
+  ]
+}
+
+
+####
+POST http://localhost:2410/spendePay
+Content-Type: application/json
+
+{
+  "vorname": "Benjamin",
+  "nachname": "Stauf",
+
+  "email": "Benjamin@stauf.at",
+  "telefonnummer": "+43650 2821919",
+
+  "strasse": "Mörikeweg ",
+  "hausnr": "20a/5",
+  "plz": "1160",
+  "ort": "Wien",
+
+  "geburtsdatum": "2003-10-24",
+  "spendenwert": "9.99"
+}
+
+
+####
+POST http://localhost:2410/orderTicket
+Content-Type: application/json
+
+{
+  "vorname": "Lukas",
+  "nachname": "Semler",
+  "email": "lukas.semler@gmail.com",
+  "telefonnummer": "+43 660 3914245",
+  "strasse": "Venusweg",
+  "hausnr": "11",
+  "plz": "1140",
+  "ort": "Wien",
+  "geburtsdatum": "2004-01-03T19:41:00.000Z",
+  "spendenwert": "",
+  "saisonkarten": {
+    "id": 1,
+    "title": "Saisonkarte normal",
+    "description": "Normale Saisonkarte",
+    "users": 140,
+    "verification": false
+  },
+  "anzahl": {
+    "id": 1,
+    "name": "1"
+  },
+  "summe": 140
+}
