@@ -1,6 +1,5 @@
 import { query, pool } from '../DB/index.js';
 import postmark from 'postmark';
-import { insert_data } from '../../Scripts/convertExcelToJson.mjs';
 
 const emailToken = process.env.postmarkToken;
 console.log(emailToken);
