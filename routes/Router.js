@@ -44,6 +44,19 @@ import {
   getVerteiler,
   getMannschaften,
   getMannschaft,
+  postVerteiler,
+  deleteVerteiler,
+  copyEmails,
+  getOneVerteiler,
+  getSaisonkarten,
+  patchSaisonkarten,
+  patchSaisonkartenAbgeholt,
+  getAllMitgliedsbeitrag,
+  mitgliedbeitragBezahlt,
+  mitgliedbeitragStats,
+  patchVerteiler,
+  saisonkartePaySuccess,
+  saisonkartePayFailed,
 } from '../controllers/VerwaltungController.js';
 
 const router = express.Router();
@@ -112,4 +125,19 @@ router.post('/orderTicket', asyncHandler(orderTicket));
 router.get('/verteiler', asyncHandler(getVerteiler));
 router.get('/mannschaften', asyncHandler(getMannschaften));
 router.get('/mannschaften/:id', asyncHandler(getMannschaft));
+router.post('/postVerteiler', asyncHandler(postVerteiler));
+router.delete('/deleteVerteiler/:id', asyncHandler(deleteVerteiler));
+router.patch('/changeVerteiler/:id', asyncHandler(patchVerteiler));
+router.get('/copyEmails/:id', asyncHandler(copyEmails));
+router.get('/getVerteiler/:id', asyncHandler(getOneVerteiler));
+
+router.get('/saisonkarten', asyncHandler(getSaisonkarten));
+router.patch('/saisonkarten/:id', asyncHandler(patchSaisonkarten));
+router.patch('/saisonkartenAbgeholt/:id', asyncHandler(patchSaisonkartenAbgeholt));
+router.get('/SaisonkartePaySuccess', saisonkartePaySuccess);
+router.get('/SaisonkartePayFailed', saisonkartePayFailed);
+
+router.get('/mitgliedsbeitragAll', asyncHandler(getAllMitgliedsbeitrag));
+router.post('/mitgliedsbeitragBezahlt/:id', asyncHandler(mitgliedbeitragBezahlt));
+router.get('/mitgliedsbeitragStats', asyncHandler(mitgliedbeitragStats));
 export default router;

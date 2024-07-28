@@ -1,5 +1,6 @@
 import { query, pool } from '../DB/index.js';
 import postmark from 'postmark';
+// import { insert_data } from '../../Scripts/convertExcelToJson.mjs';
 
 const emailToken = process.env.postmarkToken;
 console.log(emailToken);
@@ -491,7 +492,8 @@ const getAllParentsDB = async () => {
        array_agg(r.name) as Rollen
 FROM person p
 JOIN public.adresse a on a.a_id = p.adresse_fk
-LEFT JOIN public.mannschaft m on m.m_id = p.mannschaft_fk
+LEFT JOIN public.person_mannschaft pm ON pm.person_fk = p.p_id
+LEFT JOIN public.mannschaft m ON m.m_id = pm.mannschaft_fk 
 LEFT JOIN public.mitgliedsbeitrag mb on mb.m_id = p.mitgliedsbeitrag_fk
 JOIN public.person_rolle pr on p.p_id = pr.p_fk
 JOIN public.rolle r on r.r_id = pr.r_fk
@@ -647,40 +649,42 @@ const importDataDB = async () => {
 
       console.log(iterator);
 
-      //insert parents
-      for (const parent of iterator.eltern) {
-        //console.log('Parent ', parent);
-        const { rows: adress } = await connection.query(
-          'insert into adresse (street, plz, ort) values ($1, $2, $3) returning *;',
-          [parent.strasse, parent.plz, parent.ort],
-        );
+      if (iterator.eltern.length > 0) {
+        //insert parents
+        for (const parent of iterator.eltern) {
+          //console.log('Parent ', parent);
+          const { rows: adress } = await connection.query(
+            'insert into adresse (street, plz, ort) values ($1, $2, $3) returning *;',
+            [parent.strasse, parent.plz, parent.ort],
+          );
 
-        if (!adress[0]) {
-          throw new Error('Fehler bei Adresse-INSERT');
-        }
+          if (!adress[0]) {
+            throw new Error('Fehler bei Adresse-INSERT');
+          }
 
-        const { rows: personRows } = await connection.query(
-          `INSERT INTO person (vorname, nachname, email, adresse_fk, telefonnummer)
+          const { rows: personRows } = await connection.query(
+            `INSERT INTO person (vorname, nachname, email, adresse_fk, telefonnummer)
       VALUES ($1, $2, $3, $4, $5) RETURNING p_id;`,
-          [
-            parent.name.split(' ')[0],
-            parent.name.split(' ')[1],
-            parent.email,
-            adress[0].a_id,
-            parent.telefonnummer,
-          ],
-        );
+            [
+              parent.name.split(' ')[0],
+              parent.name.split(' ')[1],
+              parent.email,
+              adress[0].a_id,
+              parent.telefonnummer,
+            ],
+          );
 
-        if (!personRows[0]) {
-          throw new Error('Fehler bei Person-INSERT');
+          if (!personRows[0]) {
+            throw new Error('Fehler bei Person-INSERT');
+          }
+
+          //Rolle Eltern hinzufuegen
+          await connection.query('insert into person_rolle (p_fk, r_fk) values ($1, 1);', [
+            personRows[0].p_id,
+          ]);
+
+          parent_ids.push(personRows[0].p_id);
         }
-
-        //Rolle Eltern hinzufuegen
-        await connection.query('insert into person_rolle (p_fk, r_fk) values ($1, 1);', [
-          personRows[0].p_id,
-        ]);
-
-        parent_ids.push(personRows[0].p_id);
       }
 
       //insert player
@@ -760,13 +764,15 @@ const importDataDB = async () => {
         }
       }
 
-      //link parents with player
-      for (const player_id of player_ids) {
-        for (const parent_id of parent_ids) {
-          await connection.query('insert into spieler_eltern (s_fk, e_fk) values ($1, $2);', [
-            player_id,
-            parent_id,
-          ]);
+      if (iterator.eltern.length > 0) {
+        //link parents with player
+        for (const player_id of player_ids) {
+          for (const parent_id of parent_ids) {
+            await connection.query('insert into spieler_eltern (s_fk, e_fk) values ($1, $2);', [
+              player_id,
+              parent_id,
+            ]);
+          }
         }
       }
 
@@ -799,24 +805,123 @@ const orderTicketDB = async (
   saisonkarten,
   anzahl,
   summe,
+  spielerName,
 ) => {
   const connection = await pool.connect();
   try {
-    //add person to the db
-    const { rows } = await connection.query(``, []);
+    await connection.query('BEGIN');
+
+    //Check if person already exists
+    const { rows: person } = await connection.query(
+      'select p.* from person p where p.vorname = $1 and p.nachname = $2 and p.email = $3',
+      [vorname, nachname, email],
+    );
+
+    if (person[0]) {
+      //Person already exists, check if he already has the role Saisonkarte
+      const { rows: rolle } = await connection.query(
+        "select * from person_rolle pr where pr.r_fk = (select r.r_id from rolle r where r.name = 'Saisonkarte') and pr.p_fk = $1 ",
+        [person[0].p_id],
+      );
+
+      if (!rolle[0]) {
+        //Person already exists, set rolle to saisonkarte
+        await connection.query(
+          'insert into person_rolle (p_fk, r_fk) values ($1, (select r_id from rolle where name = $2));',
+          [person[0].p_id, 'Saisonkarte'],
+        );
+      }
+
+      //Insert into saisonkarte
+      const { rows: saisonkarte } = await connection.query(
+        'insert into saisonkarte (type, anzahl, summe, fk_p_id, spieler_name) values ($1, $2, $3, $4, $5) returning *;',
+        [saisonkarten.title, Number(anzahl.name), summe, person[0].p_id, spielerName],
+      );
+
+      if (!saisonkarte[0]) {
+        throw new Error('Fehler bei Saisonkarte-INSERT');
+      }
+
+      console.log('Person und Saisonkarte erfolgreich eingetragen');
+    } else {
+      //person does not exist
+      await postPersonDB(
+        strasse,
+        hausnr,
+        plz,
+        ort,
+        [],
+        ['Saisonkarte'],
+        vorname,
+        nachname,
+        email,
+        telefonnummer,
+        null,
+        true,
+        null,
+        [],
+      );
+
+      //get person id
+      const { rows: person } = await connection.query(
+        'select p_id from person where vorname = $1 and nachname = $2 and email = $3;',
+        [vorname, nachname, email],
+      );
+
+      if (!person[0]) {
+        throw new Error('Fehler bei Person-SELECT');
+      }
+
+      //Insert into saisonkarte
+      const { rows: saisonkarte } = await connection.query(
+        'insert into saisonkarte (type, anzahl, summe, fk_p_id) values ($1, $2, $3, $4) returning *;',
+        [saisonkarten.title, Number(anzahl.name), summe, person[0].p_id],
+      );
+
+      if (!saisonkarte[0]) {
+        throw new Error('Fehler bei Saisonkarte-INSERT');
+      }
+
+      //Insert into person_rolle
+      await connection.query(
+        'insert into person_rolle (p_fk, r_fk) values ($1, (select r_id from rolle where name = $2));',
+        [person[0].p_id, 'Saisonkarte'],
+      );
+
+      console.log('Person und Saisonkarte erfolgreich eingetragen');
+    }
+
+    await connection.query('COMMIT');
+    return true;
   } catch (error) {
+    console.error(error);
+    await connection.query('ROLLBACK');
+    return false;
   } finally {
+    await connection.release();
   }
 };
 
 const getVerteilerDB = async () => {
   try {
-    const { rows } =
-      await query(`SELECT ev.v_id, ev."name", ev.selbst_erstellt, ev.short, ev.beschreibung, COUNT(DISTINCT pr.p_fk) AS num_people
-FROM email_verteiler ev
-LEFT JOIN rolle r ON ev.v_id = r.fk_email_verteiler
-LEFT JOIN person_rolle pr ON r.r_id = pr.r_fk
-GROUP BY ev.v_id, ev."name";`);
+    const { rows } = await query(`SELECT 
+    ev.v_id, 
+    ev."name", 
+    ev.selbst_erstellt, 
+    ev.short, 
+    ev.beschreibung, 
+    COUNT(DISTINCT pr.p_fk) + 
+    COUNT(DISTINCT CASE WHEN ev.selbst_erstellt = true THEN pe.p_fk END) AS num_people
+FROM 
+    email_verteiler ev
+LEFT JOIN 
+    rolle r ON ev.v_id = r.fk_email_verteiler
+LEFT JOIN 
+    person_rolle pr ON r.r_id = pr.r_fk
+LEFT JOIN 
+    person_email pe ON pe.v_fk = ev.v_id
+GROUP BY 
+    ev.v_id, ev."name", ev.selbst_erstellt, ev.short, ev.beschreibung;`);
 
     if (rows[0]) return rows;
     return false;
@@ -920,6 +1025,276 @@ GROUP BY p.p_id, a.street, a.hausnummer, a.plz, a.ort, m.name, mb.summe, mb.beza
   }
 };
 
+const postVerteilerDB = async (name, beschreibung, personen) => {
+  const connection = await pool.connect();
+  try {
+    await connection.query('BEGIN');
+
+    //Insert into email_verteiler
+    const { rows: emailVerteiler } = await connection.query(
+      'INSERT INTO email_verteiler (name, beschreibung, short, selbst_erstellt) VALUES ($1, $2, $3, true) RETURNING v_id;',
+      [name, beschreibung, name[0]],
+    );
+
+    if (!emailVerteiler[0]) {
+      throw new Error('Fehler bei emailVerteiler-INSERT');
+    }
+
+    //Insert into person_email
+    for (const person of personen) {
+      await connection.query('INSERT INTO person_email (p_fk, v_fk) VALUES ($1, $2);', [
+        person.p_id,
+        emailVerteiler[0].v_id,
+      ]);
+    }
+
+    await connection.query('COMMIT');
+
+    return true;
+  } catch (error) {
+    console.error(error);
+    await connection.query('ROLLBACK');
+    return false;
+  } finally {
+    await connection.release();
+  }
+};
+
+const deleteVerteilerDB = async (id) => {
+  try {
+    await query('DELETE FROM email_verteiler WHERE v_id = $1;', [id]);
+    return true;
+  } catch (error) {
+    console.log(error);
+    return false;
+  }
+};
+
+const patchVerteilerDB = async (id, personen) => {
+  const connection = await pool.connect();
+  try {
+    await connection.query('BEGIN');
+
+    await connection.query('DELETE from person_email where v_fk = $1;', [id]);
+
+    for (const person of personen) {
+      await connection.query('INSERT INTO person_email (p_fk, v_fk) VALUES ($1, $2);', [
+        person,
+        id,
+      ]);
+    }
+
+    await connection.query('COMMIT');
+    return true;
+  } catch (error) {
+    console.error(error);
+    await connection.query('ROLLBACK');
+    return false;
+  } finally {
+    await connection.release();
+  }
+};
+
+const copyEmailsDB = async (id) => {
+  try {
+    const { rows } = await query(
+      `SELECT DISTINCT
+    p.email
+FROM 
+    email_verteiler ev
+LEFT JOIN 
+    rolle r ON ev.v_id = r.fk_email_verteiler
+LEFT JOIN 
+    person_rolle pr ON r.r_id = pr.r_fk
+LEFT JOIN 
+    person p ON pr.p_fk = p.p_id
+LEFT JOIN 
+    person_email pe ON pe.v_fk = ev.v_id
+LEFT JOIN 
+    person p2 ON pe.p_fk = p2.p_id
+WHERE 
+    ev.v_id = $1
+    AND (p.email IS NOT NULL OR p2.email IS NOT NULL)
+UNION
+SELECT DISTINCT   
+    p2.email
+FROM 
+    email_verteiler ev
+LEFT JOIN 
+    person_email pe ON pe.v_fk = ev.v_id
+LEFT JOIN 
+    person p2 ON pe.p_fk = p2.p_id
+WHERE 
+    ev.v_id = $1
+    AND p2.email IS NOT NULL;`,
+      [id],
+    );
+
+    if (rows) return rows;
+  } catch (error) {
+    console.log(error);
+    return false;
+  }
+};
+
+const getOneVerteilerDB = async (id) => {
+  try {
+    const { rows } = await query(
+      `   
+  SELECT p.*,
+       a.street, a.hausnummer, a.plz, a.ort,
+       COALESCE(m.name, null) as Mannschaftsname,
+       COALESCE(mb.summe, null) as Mitgliederbeitragssumme, 
+       COALESCE(mb.bezahlt, null) as MitgliederbeitragssummeBezahlt,
+       p.newsletter as Newsletter,
+       array_agg(r.name) as Rollen
+FROM person p
+JOIN public.adresse a ON a.a_id = p.adresse_fk
+LEFT JOIN public.person_mannschaft pm ON pm.person_fk = p.p_id
+LEFT JOIN public.mannschaft m ON m.m_id = pm.mannschaft_fk 
+LEFT JOIN public.mitgliedsbeitrag mb ON mb.m_id = p.mitgliedsbeitrag_fk
+JOIN public.person_rolle pr ON p.p_id = pr.p_fk
+JOIN public.rolle r ON r.r_id = pr.r_fk
+LEFT JOIN public.person_email pe ON p.p_id = pe.p_fk 
+WHERE r.fk_email_verteiler = $1 OR pe.v_fk = $1
+GROUP BY p.p_id, a.street, a.hausnummer, a.plz, a.ort, m.name, mb.summe, mb.bezahlt;
+`,
+      [id],
+    );
+
+    if (rows) return rows;
+  } catch (error) {
+    console.log(error);
+    return false;
+  }
+};
+
+const getSaisonkartenDB = async () => {
+  try {
+    const { rows } = await query(`select saisonkarte.s_id AS saisonkarte_id,
+    saisonkarte."type" as "name",
+    saisonkarte.summe,
+    saisonkarte.bezahlt,
+    saisonkarte.anzahl,
+    saisonkarte.abgeholt,
+    saisonkarte.spieler_name,
+    person.p_id AS p_id,
+    person.vorname,
+    person.nachname,
+    person.email,
+    person.telefonnummer 
+FROM
+    saisonkarte
+INNER JOIN
+    person
+ON
+    saisonkarte.fk_p_id = person.p_id
+    ORDER BY saisonkarte_id Asc;`);
+
+    if (rows[0]) return rows;
+  } catch (error) {
+    console.log(error);
+    return false;
+  }
+};
+
+const patchSaisonkartenDB = async (id, bezahlt) => {
+  try {
+    await query('UPDATE saisonkarte SET bezahlt = $1 WHERE s_id = $2;', [bezahlt, id]);
+
+    return true;
+  } catch (error) {
+    console.log('Error: ', error);
+    return false;
+  }
+};
+
+const patchSaisonkartenAbgeholtDB = async (id, abgeholt) => {
+  try {
+    await query('UPDATE saisonkarte SET abgeholt = $1 WHERE s_id = $2;', [abgeholt, id]);
+
+    return true;
+  } catch (error) {
+    console.log('Error: ', error);
+    return false;
+  }
+};
+
+const getAllMitgliedsbeitragDB = async () => {
+  try {
+    const { rows } = await query(`  SELECT 
+    p.*, 
+    m.*, 
+    ma.*
+FROM 
+    person p
+INNER JOIN 
+    mitgliedsbeitrag m 
+ON 
+    p.mitgliedsbeitrag_fk = m.m_id 
+LEFT JOIN 
+    person_mannschaft pm
+ON 
+    p.p_id = pm.person_fk 
+LEFT JOIN 
+    mannschaft ma
+ON 
+    pm.mannschaft_fk = ma.m_id
+   where m.summe > 0;
+`);
+
+    if (rows[0]) return rows;
+    return false;
+  } catch (error) {
+    console.log(error);
+    return false;
+  }
+};
+
+const mitgliedbeitragBezahltDB = async (id, bezahlt) => {
+  try {
+    await query('update mitgliedsbeitrag set bezahlt = $1 where m_id = $2;', [bezahlt, id]);
+
+    return true;
+  } catch (error) {
+    console.log('Error: ', error);
+    return false;
+  }
+};
+
+const mitgliedbeitragStatsDB = async () => {
+  try {
+    const { rows } = await query(` WITH totals AS (
+    SELECT
+        COALESCE(SUM(m.summe) FILTER (WHERE m.bezahlt = true), 0) AS total_amount_paid,
+        COALESCE(SUM(m.summe) FILTER (WHERE m.bezahlt = false), 0) AS total_amount_open,
+        COALESCE(SUM(m.summe), 0) AS total_amount,
+        COUNT(*) AS total_fees,
+        COUNT(*) FILTER (WHERE m.bezahlt = true) AS paid_fees,
+        COUNT(*) FILTER (WHERE m.bezahlt = false) AS open_fees
+    FROM
+        mitgliedsbeitrag m
+)
+SELECT
+    total_amount_paid,
+    total_amount_open,
+    total_fees,
+    paid_fees,
+    open_fees,
+    CASE
+        WHEN total_amount = 0 THEN 0
+        ELSE (total_amount_paid * 100.0 / total_amount)
+    END AS percentage_paid
+FROM
+    totals;`);
+    if (rows[0]) return rows;
+    return false;
+  } catch (error) {
+    console.log(error);
+    return false;
+  }
+};
+
 export {
   getRolesDB,
   postRolesDB,
@@ -939,4 +1314,15 @@ export {
   getVerteilerDB,
   getMannschaftenDB,
   getMannschaftDB,
+  postVerteilerDB,
+  deleteVerteilerDB,
+  patchVerteilerDB,
+  copyEmailsDB,
+  getOneVerteilerDB,
+  getSaisonkartenDB,
+  patchSaisonkartenDB,
+  patchSaisonkartenAbgeholtDB,
+  getAllMitgliedsbeitragDB,
+  mitgliedbeitragBezahltDB,
+  mitgliedbeitragStatsDB,
 };
