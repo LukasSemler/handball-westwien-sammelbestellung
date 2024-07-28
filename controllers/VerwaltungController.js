@@ -521,7 +521,18 @@ const saisonkartePaySuccess = async (req, res) => {
   }
 };
 
-const saisonkartePayFailed = async (req, res) => {};
+const saisonkartePayFailed = async (req, res) => {
+  saisonKarteOrderInfo = [];
+
+  console.log('Payment Failed!!!');
+  res.redirect(
+    `${
+      process.env.SERVER_DEVMODE
+        ? `http://localhost:${process.env.SERVER_PORT}`
+        : `https://handball-westwien-sammelbestellung.onrender.com`
+    }/#/ordercancellation?confirmationType=Produktkauf`,
+  );
+};
 
 const getVerteiler = async (req, res) => {
   const result = await getVerteilerDB();
