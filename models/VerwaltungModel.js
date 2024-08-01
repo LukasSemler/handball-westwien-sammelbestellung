@@ -1,6 +1,6 @@
 import { query, pool } from '../DB/index.js';
 import postmark from 'postmark';
-// import { insert_data } from '../../Scripts/convertExcelToJson.mjs';
+//import { insert_data } from '../../Scripts/convertExcelToJson.mjs';
 
 const emailToken = process.env.postmarkToken;
 console.log(emailToken);
@@ -523,14 +523,16 @@ const getMitgliedsbeitragDB = async (vorname, nachname, geburtsdatum) => {
       [vorname, nachname, geburtsdatum],
     );
 
+    if (!rows[0]) return false;
+    console.log('Vorname: ' + rows[0].vorname);
+
     let res_player = await getPersonDB(rows[0].p_id);
+    if (!res_player) return false;
+
     let res_parents = await getParentsDB(rows[0].p_id);
+    if (!res_parents) console.log('Spieler über 18Jahre');
 
-    if (res_player && res_parents) {
-      return { player: res_player, parents: res_parents };
-    }
-
-    return false;
+    return { player: res_player, parents: res_parents ? res_parents : [] };
   } catch (error) {
     console.log('Error: ', error);
     return false;
@@ -874,19 +876,13 @@ const orderTicketDB = async (
 
       //Insert into saisonkarte
       const { rows: saisonkarte } = await connection.query(
-        'insert into saisonkarte (type, anzahl, summe, fk_p_id) values ($1, $2, $3, $4) returning *;',
-        [saisonkarten.title, Number(anzahl.name), summe, person[0].p_id],
+        'insert into saisonkarte (type, anzahl, summe, fk_p_id, spieler_name) values ($1, $2, $3, $4, $5) returning *;',
+        [saisonkarten.title, Number(anzahl.name), summe, person[0].p_id, spielerName],
       );
 
       if (!saisonkarte[0]) {
         throw new Error('Fehler bei Saisonkarte-INSERT');
       }
-
-      //Insert into person_rolle
-      await connection.query(
-        'insert into person_rolle (p_fk, r_fk) values ($1, (select r_id from rolle where name = $2));',
-        [person[0].p_id, 'Saisonkarte'],
-      );
 
       console.log('Person und Saisonkarte erfolgreich eingetragen');
     }
