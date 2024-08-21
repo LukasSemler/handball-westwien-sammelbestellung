@@ -295,7 +295,9 @@ const orderPay = async (req, res) => {
         : `https://handball-westwien-sammelbestellung.onrender.com`
     }/orderPaySuccess?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${
-      process.env.SERVER_DEVMODE ? `http://localhost:${process.env.SERVER_PORT}` : `https://handball-westwien-sammelbestellung.onrender.com`
+      process.env.SERVER_DEVMODE
+        ? `http://localhost:${process.env.SERVER_PORT}`
+        : `https://handball-westwien-sammelbestellung.onrender.com`
     }/orderPayFailed?session_id={CHECKOUT_SESSION_ID}`,
     automatic_tax: { enabled: true },
   });
@@ -345,7 +347,9 @@ const orderPayFailed = async (req, res) => {
   console.log('Payment Failed!!!');
   res.redirect(
     `${
-      process.env.SERVER_DEVMODE ? `http://localhost:${process.env.SERVER_PORT}` : `https://handball-westwien-sammelbestellung.onrender.com`
+      process.env.SERVER_DEVMODE
+        ? `http://localhost:${process.env.SERVER_PORT}`
+        : `https://handball-westwien-sammelbestellung.onrender.com`
     }/#/ordercancellation?confirmationType=Produktkauf`,
   );
 };

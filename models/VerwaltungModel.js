@@ -1,10 +1,6 @@
 import { query, pool } from '../DB/index.js';
-import postmark from 'postmark';
-//import { insert_data } from '../../Scripts/convertExcelToJson.mjs';
-
-const emailToken = process.env.postmarkToken;
-console.log(emailToken);
-const emailClient = new postmark.ServerClient('313fee21-10d9-4d96-b3d4-75ea5a35ab20');
+// import { insert_data } from '../../Scripts/convertExcelToJson.mjs';
+import chalk from 'chalk';
 
 const getRolesDB = async (req, res) => {
   try {
@@ -67,23 +63,63 @@ const updateRoleDB = async (role_id, name, beschreibung) => {
 
 const getPersonenDB = async () => {
   try {
-    const personen = await query(`SELECT p.*,
-       a.street, a.hausnummer, a.plz, a.ort,
-       COALESCE(m.name, null) as Mannschaftsname,
-       COALESCE(mb.summe, null) as Mitgliederbeitragssumme, 
-       COALESCE(mb.bezahlt, null) as MitgliederbeitragssummeBezahlt,
-       p.newsletter as Newsletter,
-       array_agg(r.name) as Rollen
-FROM person p
-JOIN public.adresse a ON a.a_id = p.adresse_fk
-LEFT JOIN public.person_mannschaft pm ON pm.person_fk = p.p_id
-LEFT JOIN public.mannschaft m ON m.m_id = pm.mannschaft_fk 
-LEFT JOIN public.mitgliedsbeitrag mb ON mb.m_id = p.mitgliedsbeitrag_fk
-JOIN public.person_rolle pr ON p.p_id = pr.p_fk
-JOIN public.rolle r ON r.r_id = pr.r_fk
-GROUP BY p.p_id, a.street, a.hausnummer, a.plz, a.ort, m.name, mb.summe, mb.bezahlt;`);
+    const personen = await query(`WITH person_mannschaften AS (
+    SELECT 
+        p.p_id,
+        array_agg(DISTINCT m.name) AS mannschaften
+    FROM 
+        person p
+    LEFT JOIN 
+        public.person_mannschaft pm ON pm.person_fk = p.p_id
+    LEFT JOIN 
+        public.mannschaft m ON m.m_id = pm.mannschaft_fk 
+    GROUP BY 
+        p.p_id
+),
+person_rollen AS (
+    SELECT 
+        p.p_id,
+        array_agg(DISTINCT r.name) AS rollen
+    FROM 
+        person p
+    JOIN 
+        public.person_rolle pr ON p.p_id = pr.p_fk
+    JOIN 
+        public.rolle r ON r.r_id = pr.r_fk
+    GROUP BY 
+        p.p_id
+)
+SELECT 
+    p.*,
+    a.street, 
+    a.hausnummer, 
+    a.plz, 
+    a.ort,
+    COALESCE(pm.mannschaften[1], null) as Mannschaftsname,
+    COALESCE(mi.summe, null) as Mitgliederbeitragssumme, 
+    COALESCE(mb.bezahlt, null) as MitgliederbeitragssummeBezahlt,
+    p.newsletter as Newsletter,
+    pr.rollen, 
+    p.is_aktiv
+FROM 
+    person p
+JOIN 
+    public.adresse a ON a.a_id = p.adresse_fk
+LEFT JOIN 
+    public.mitgliedsbeitrag mb ON mb.m_id = p.mitgliedsbeitrag_fk
+LEFT JOIN 
+    public.mitgliedbeitrag_info mi ON mi.mi_id = mb.mitgliedsbeitrag_typ_fk
+LEFT JOIN 
+    person_mannschaften pm ON pm.p_id = p.p_id
+LEFT JOIN 
+    person_rollen pr ON pr.p_id = p.p_id
+GROUP BY 
+    p.p_id, a.street, a.hausnummer, a.plz, a.ort, pm.mannschaften, mi.summe, mb.bezahlt, pr.rollen
+    ORDER BY p.nachname ASC;
+`);
     return personen.rows;
   } catch (error) {
+    console.log(error);
     return false;
   }
 };
@@ -91,26 +127,42 @@ GROUP BY p.p_id, a.street, a.hausnummer, a.plz, a.ort, m.name, mb.summe, mb.beza
 const getPersonDB = async (id) => {
   try {
     const personen = await query(
-      `SELECT p.*,
-       a.street, a.hausnummer, a.plz, a.ort,
-       COALESCE(m.name, null) as Mannschaftsname,
-       COALESCE(mb.summe, null) as Mitgliederbeitragssumme, 
-       COALESCE(mb.bezahlt, null) as MitgliederbeitragssummeBezahlt,
-       p.newsletter as Newsletter,
-       array_agg(r.name) as Rollen
-FROM person p
-JOIN public.adresse a ON a.a_id = p.adresse_fk
-LEFT JOIN public.person_mannschaft pm ON pm.person_fk = p.p_id
-LEFT JOIN public.mannschaft m ON m.m_id = pm.mannschaft_fk 
-LEFT JOIN public.mitgliedsbeitrag mb ON mb.m_id = p.mitgliedsbeitrag_fk
-JOIN public.person_rolle pr ON p.p_id = pr.p_fk
-JOIN public.rolle r ON r.r_id = pr.r_fk
+      `SELECT 
+    p.*,
+    a.street, 
+    a.hausnummer, 
+    a.plz, 
+    a.ort,
+    COALESCE(m.name, null) as Mannschaftsname,
+    COALESCE(mi.summe, null) as Mitgliederbeitragssumme, 
+    COALESCE(mb.bezahlt, null) as MitgliederbeitragssummeBezahlt,
+    p.newsletter as Newsletter,
+    array_agg(r.name) as Rollen, 
+    p.is_aktiv
+FROM 
+    person p
+JOIN 
+    public.adresse a ON a.a_id = p.adresse_fk
+LEFT JOIN 
+    public.person_mannschaft pm ON pm.person_fk = p.p_id
+LEFT JOIN 
+    public.mannschaft m ON m.m_id = pm.mannschaft_fk 
+LEFT JOIN 
+    public.mitgliedsbeitrag mb ON mb.m_id = p.mitgliedsbeitrag_fk
+LEFT JOIN 
+    public.mitgliedbeitrag_info mi ON mi.mi_id = mb.mitgliedsbeitrag_typ_fk
+JOIN 
+    public.person_rolle pr ON p.p_id = pr.p_fk
+JOIN 
+    public.rolle r ON r.r_id = pr.r_fk
 WHERE p.p_id = $1
-GROUP BY p.p_id, a.street, a.hausnummer, a.plz, a.ort, m.name, mb.summe, mb.bezahlt;`,
+GROUP BY 
+    p.p_id, a.street, a.hausnummer, a.plz, a.ort, m.name, mi.summe, mb.bezahlt;`,
       [id],
     );
     return personen.rows[0];
   } catch (error) {
+    console.log(error);
     return false;
   }
 };
@@ -134,6 +186,7 @@ const patchPersonDB = async (
   mitgliederbeitragssumme,
   mitgliederbeitragssummebezahlt,
   rollen,
+  uww_nummer,
 ) => {
   const query = await pool.connect();
   try {
@@ -192,8 +245,8 @@ WHERE person.p_id = $1;`,
 
     //Update person exept for adress
     const { rows: personUpdated } = await query.query(
-      '  update person set vorname = $1, nachname = $2, email = $3, telefonnummer = $4, newsletter = $5, status = $6 where p_id = $7 returning *; ',
-      [vorname, nachname, email, telefonnummer, newsletter, status, p_id],
+      '  update person set vorname = $1, nachname = $2, email = $3, telefonnummer = $4, newsletter = $5, status = $6, uww_nummer = $8 where p_id = $7 returning *; ',
+      [vorname, nachname, email, telefonnummer, newsletter, status, p_id, uww_nummer],
     );
 
     if (!personUpdated[0]) {
@@ -238,6 +291,7 @@ const postPersonDB = async (
   email,
   telefonnummer,
   geburtsdatum,
+  eintritt,
   newsletter,
   notizen,
   parents,
@@ -247,6 +301,12 @@ const postPersonDB = async (
     //Start transaction
     await con.query('BEGIN');
 
+    let parents_inserted = [];
+
+    //-------------------------------------ADRESSE---------------------------------------------
+
+    console.log(chalk.blue('INSERT address'));
+
     //Insert address
     const { rows: address } = await con.query(
       'INSERT INTO adresse (street, hausnummer, plz, ort) VALUES ($1, $2, $3, $4) RETURNING a_id;',
@@ -254,46 +314,92 @@ const postPersonDB = async (
     );
 
     if (!address[0]) {
+      console.log(chalk.red('Error at address-INSERT'));
       return false;
     }
 
-    console.log(address[0].a_id);
+    console.log(chalk.green('Address inserted'));
+
+    //---------------------------------MITGLIEDSBEITRAG-------------------------------------------------
 
     let mitgliedsbeitrag_fk;
 
     //Insert into mitgliedsbeitrag if person is a player
     if (player_infos.mitgliederbeitragssumme && roles.includes('Spieler')) {
-      console.log('insert mitgliedsbeitrag');
-      const { rows: mitgliedsbeitrag } = await con.query(
-        'INSERT INTO mitgliedsbeitrag (summe, bezahlt) VALUES ($1, false) RETURNING m_id;',
+      console.log(chalk.blue('INSERT Mitgliedsbeitrag'));
+
+      const { rows: m } = await con.query(
+        'SELECT mi_id FROM mitgliedbeitrag_info WHERE summe = $1;',
         [player_infos.mitgliederbeitragssumme],
       );
 
-      if (!mitgliedsbeitrag[0]) {
-        return false;
+      if (player_infos.mannschaft.mannschaftsname === 'Erste') {
+        console.log(chalk.magenta('Erste Mannschaft -> keinen Beitrag'));
+
+        const { rows: mitgliedsbeitrag } = await con.query(
+          'INSERT INTO mitgliedsbeitrag (mitgliedsbeitrag_typ_fk, bezahlt) VALUES ($1, true) RETURNING m_id;',
+          [3],
+        );
+
+        mitgliedsbeitrag_fk = mitgliedsbeitrag[0].m_id;
+      } else if (m[0]) {
+        console.log(chalk.magenta('Mitgliedsbeitrag gefunden -> normaler Beitrag'));
+
+        const { rows: mitgliedsbeitrag } = await con.query(
+          'INSERT INTO mitgliedsbeitrag (mitgliedsbeitrag_typ_fk, bezahlt) VALUES ($1, false) RETURNING m_id;',
+          [m[0].mi_id],
+        );
+
+        if (!mitgliedsbeitrag[0]) {
+          console.log(chalk.red('ERROR at Mitgliedsbeitrag-INSERT'));
+          return false;
+        }
+
+        mitgliedsbeitrag_fk = mitgliedsbeitrag[0].m_id;
+      } else {
+        console.log(chalk.magenta('Mitgliedsbeitrag nicht gefunden -> eigener Beitrag'));
+
+        const { rows: mitgliedsbeitrag } = await con.query(
+          'INSERT INTO mitgliedsbeitrag (mitgliedsbeitrag_typ_fk, bezahlt) VALUES ($1, false) RETURNING m_id;',
+          [4],
+        );
+
+        if (!mitgliedsbeitrag[0]) {
+          console.log(chalk.red('ERROR at Mitgliedsbeitrag-INSERT'));
+          return false;
+        }
+
+        mitgliedsbeitrag_fk = mitgliedsbeitrag[0].m_id;
       }
 
-      mitgliedsbeitrag_fk = mitgliedsbeitrag[0].m_id;
+      console.log(chalk.green('Mitgliedsbeitrag inserted'));
     }
 
-    console.log('mitgliedsbeitrag_fk: ', mitgliedsbeitrag_fk);
+    //--------------------------------------MANNSCHAFT--------------------------------------------
 
     let mannschaft_fk;
 
     //get mannschaft_fk
     if (player_infos.mannschaft && roles.includes('Spieler')) {
+      console.log(chalk.blue('GET Mannschaft'));
+
       const { rows: mannschaft } = await con.query('Select m_id from mannschaft where name = $1', [
-        player_infos.mannschaft,
+        player_infos.mannschaft.mannschaftsname,
       ]);
 
       if (!mannschaft[0]) {
+        console.log(chalk.red('ERROR at Mannschaft-INSERT'));
         return false;
       }
+
+      console.log(chalk.green('Mannschaft inserted'));
 
       mannschaft_fk = mannschaft[0].m_id;
     }
 
-    console.log('mannschaft_fk: ', mannschaft_fk);
+    //--------------------------------------PERSON--------------------------------------------
+
+    console.log(chalk.blue('INSERT person'));
 
     //Insert person
     const { rows: person } = await con.query(
@@ -303,36 +409,31 @@ const postPersonDB = async (
         nachname,
         email ? email : '',
         telefonnummer,
-        geburtsdatum,
+        geburtsdatum ? geburtsdatum : null,
         address[0].a_id,
         newsletter,
         notizen,
         mitgliedsbeitrag_fk ? mitgliedsbeitrag_fk : null,
-        new Date(),
+        eintritt,
       ],
     );
 
     if (!person[0]) {
+      console.log(chalk.red('ERROR at Person-INSERT'));
       return false;
     }
 
-    if (roles.includes('Spieler')) {
-      await con.query('Insert into person_mannschaft (person_fk, mannschaft_fk) values ($1, $2);', [
-        person[0].p_id,
-        mannschaft_fk,
-      ]);
-    }
-
-    console.log('person: ', person[0]);
+    console.log(chalk.green('Person inserted'));
 
     //Insert roles
     for (const iterator of roles) {
+      console.log(chalk.blue('INSERT Role'));
+
       //get role id
       const { rows: role } = await con.query('Select r_id from rolle where name = $1', [iterator]);
 
-      console.log('role: ', role[0]);
-
       if (!role[0]) {
+        console.log(chalk.red('ERROR at Role-INSERT'));
         return false;
       }
 
@@ -341,74 +442,106 @@ const postPersonDB = async (
         person[0].p_id,
         role[0].r_id,
       ]);
+
+      console.log(chalk.green('Role inserted'));
     }
 
     //Insert parents if a player
     if (roles.includes('Spieler')) {
-      //Check if person already exists
-      for (const iterator of parents) {
-        if (iterator.p_id) {
-          console.log('Person already exists');
-          //Person already exists, link with player
-          await con.query('INSERT INTO spieler_eltern (s_fk, e_fk) VALUES ($1, $2)', [
-            person[0].p_id,
-            iterator.p_id,
-          ]);
-        } else {
-          console.log('Person does not exist');
-          //person does not exist, create person
-          //Insert address
-          const { rows: address } = await con.query(
-            'INSERT INTO adresse (street, hausnummer, plz, ort) VALUES ($1, $2, $3, $4) RETURNING a_id;',
-            [iterator.street, iterator.houseNumber, iterator.postalCode, iterator.city],
-          );
+      console.log(chalk.blue('INSERT Parents'));
 
-          if (!address[0]) {
-            return false;
-          }
-
-          //Insert person
-          const { rows: personParent } = await con.query(
-            `insert into person (vorname, nachname, email, telefonnummer, geburtsdatum, adresse_fk, newsletter, status) values ($1, $2, $3, $4, $5, $6, $7, $8) returning *;`,
-            [
-              iterator.vorname,
-              iterator.nachname,
-              iterator.email ? iterator.email : '',
-              iterator.telefonnummer,
-              iterator.birthdate,
-              address[0].a_id,
-              iterator.newsletter,
-              iterator.notes,
-            ],
-          );
-
-          if (!personParent[0]) {
-            return false;
-          }
-
-          //Insert roles
-          for (const roleName of iterator.rollen) {
-            //get role id
-            const { rows: role } = await con.query('Select r_id from rolle where name = $1', [
-              roleName,
+      if (parents) {
+        //Check if person already exists
+        for (const iterator of parents) {
+          if (iterator.p_id) {
+            console.log(chalk.bgYellow('Person already exists'));
+            //Person already exists, link with player
+            await con.query('INSERT INTO spieler_eltern (s_fk, e_fk) VALUES ($1, $2)', [
+              person[0].p_id,
+              iterator.p_id,
             ]);
+          } else {
+            console.log(chalk.bgYellow('Person does not exist'));
+            //person does not exist, create person
+            //Insert address
+            const { rows: address } = await con.query(
+              'INSERT INTO adresse (street, hausnummer, plz, ort) VALUES ($1, $2, $3, $4) RETURNING a_id;',
+              [iterator.street, iterator.houseNumber, iterator.postalCode, iterator.city],
+            );
 
-            if (!role[0]) {
+            if (!address[0]) {
               return false;
             }
 
-            //Insert role
-            await con.query('INSERT INTO person_rolle (p_fk, r_fk) VALUES ($1, $2)', [
-              personParent[0].p_id,
-              role[0].r_id,
-            ]);
-          }
+            //Insert person
+            const { rows: personParent } = await con.query(
+              `insert into person (vorname, nachname, email, telefonnummer, geburtsdatum, adresse_fk, newsletter, status) values ($1, $2, $3, $4, $5, $6, $7, $8) returning *;`,
+              [
+                iterator.vorname,
+                iterator.nachname,
+                iterator.email ? iterator.email : '',
+                iterator.telefonnummer,
+                iterator.birthdate,
+                address[0].a_id,
+                iterator.newsletter,
+                iterator.notes,
+              ],
+            );
 
-          //Link player with parent
-          await con.query('INSERT INTO spieler_eltern (s_fk, e_fk) VALUES ($1, $2)', [
-            person[0].p_id,
-            personParent[0].p_id,
-          ]);
+            if (!personParent[0]) {
+              return false;
+            }
+
+            //Insert roles
+            for (const roleName of iterator.rollen) {
+              //get role id
+              const { rows: role } = await con.query('Select r_id from rolle where name = $1', [
+                roleName,
+              ]);
+
+              if (!role[0]) {
+                return false;
+              }
+
+              //Insert role
+              await con.query('INSERT INTO person_rolle (p_fk, r_fk) VALUES ($1, $2)', [
+                personParent[0].p_id,
+                role[0].r_id,
+              ]);
+            }
+
+            //Link player with parent
+            await con.query('INSERT INTO spieler_eltern (s_fk, e_fk) VALUES ($1, $2)', [
+              person[0].p_id,
+              personParent[0].p_id,
+            ]);
+
+            parents_inserted.push(personParent[0]);
+          }
+        }
+      } else {
+        console.log(chalk.cyan('No parents'));
+      }
+    }
+
+    //Link player with mannschaft
+    if (roles.includes('Spieler')) {
+      console.log(chalk.blue('INSERT Mannschaft'));
+      await con.query('Insert into person_mannschaft (person_fk, mannschaft_fk) values ($1, $2);', [
+        person[0].p_id,
+        mannschaft_fk,
+      ]);
+      console.log(chalk.green('Person Mannschaft inserted'));
+
+      //Link parents with mannschaft
+      if (parents) {
+        for (const iterator of parents_inserted) {
+          console.log(iterator);
+
+          await con.query(
+            'Insert into person_mannschaft (person_fk, mannschaft_fk) values ($1, $2);',
+            [iterator.p_id, mannschaft_fk],
+          );
         }
       }
     }
@@ -451,22 +584,36 @@ ORDER BY
 const getParentsDB = async (id) => {
   try {
     const { rows } = await query(
-      `SELECT p.*,
-       a.street, a.hausnummer, a.plz, a.ort,
-       COALESCE(m.name, 'No Mannschaft') as Mannschaftsname,
-       COALESCE(mb.summe, 0) as Mitgliederbeitragssumme, 
-       COALESCE(mb.bezahlt, false) as MitgliederbeitragssummeBezahlt,
-       p.newsletter as Newsletter,
-       array_agg(r.name) as Rollen
-FROM person p
-JOIN public.adresse a on a.a_id = p.adresse_fk
-LEFT JOIN public.person_mannschaft pm ON pm.person_fk = p.p_id
-LEFT JOIN public.mannschaft m ON m.m_id = pm.mannschaft_fk 
-LEFT JOIN public.mitgliedsbeitrag mb on mb.m_id = p.mitgliedsbeitrag_fk
-JOIN public.person_rolle pr on p.p_id = pr.p_fk
-JOIN public.rolle r on r.r_id = pr.r_fk
-join spieler_eltern se on p.p_id = se.e_fk where se.s_fk = $1 
-GROUP BY p.p_id, a.street, a.hausnummer, a.plz, a.ort, m.name, mb.summe, mb.bezahlt;
+      `SELECT 
+    p.*,
+    a.street, 
+    a.hausnummer, 
+    a.plz, 
+    a.ort,
+    COALESCE(string_agg(DISTINCT m.name, ', '), 'No Mannschaft') as Mannschaftsname,
+    COALESCE(mb.bezahlt, false) as MitgliederbeitragssummeBezahlt,
+    p.newsletter as Newsletter,
+    array_agg(DISTINCT r.name) as Rollen
+FROM 
+    person p
+JOIN 
+    public.adresse a ON a.a_id = p.adresse_fk
+LEFT JOIN 
+    public.person_mannschaft pm ON pm.person_fk = p.p_id
+LEFT JOIN 
+    public.mannschaft m ON m.m_id = pm.mannschaft_fk
+LEFT JOIN 
+    public.mitgliedsbeitrag mb ON mb.m_id = p.mitgliedsbeitrag_fk
+JOIN 
+    public.person_rolle pr ON p.p_id = pr.p_fk
+JOIN 
+    public.rolle r ON r.r_id = pr.r_fk
+JOIN 
+    public.spieler_eltern se ON p.p_id = se.e_fk 
+WHERE 
+    se.s_fk = $1
+GROUP BY 
+    p.p_id, a.street, a.hausnummer, a.plz, a.ort, mb.bezahlt;
 `,
       [id],
     );
@@ -483,26 +630,39 @@ GROUP BY p.p_id, a.street, a.hausnummer, a.plz, a.ort, m.name, mb.summe, mb.beza
 
 const getAllParentsDB = async () => {
   try {
-    const { rows } = await query(`SELECT p.*,
-       a.street, a.hausnummer, a.plz, a.ort,
-       COALESCE(m.name, null) as Mannschaftsname,
-       COALESCE(mb.summe, null) as Mitgliederbeitragssumme, 
-       COALESCE(mb.bezahlt, null) as MitgliederbeitragssummeBezahlt,
-       p.newsletter as Newsletter,
-       array_agg(r.name) as Rollen
-FROM person p
-JOIN public.adresse a on a.a_id = p.adresse_fk
-LEFT JOIN public.person_mannschaft pm ON pm.person_fk = p.p_id
-LEFT JOIN public.mannschaft m ON m.m_id = pm.mannschaft_fk 
-LEFT JOIN public.mitgliedsbeitrag mb on mb.m_id = p.mitgliedsbeitrag_fk
-JOIN public.person_rolle pr on p.p_id = pr.p_fk
-JOIN public.rolle r on r.r_id = pr.r_fk
-WHERE p.p_id IN (
-    SELECT p_fk
-    FROM public.person_rolle
-    WHERE r_fk = 1
-)
-GROUP BY p.p_id, a.street, a.hausnummer, a.plz, a.ort, m.name, mb.summe, mb.bezahlt;
+    const { rows } = await query(`SELECT 
+    p.*,
+    a.street, 
+    a.hausnummer, 
+    a.plz, 
+    a.ort,
+    COALESCE(m.name, null) as Mannschaftsname,
+    COALESCE(mi.summe, null) as Mitgliederbeitragssumme, 
+    COALESCE(mb.bezahlt, null) as MitgliederbeitragssummeBezahlt,
+    p.newsletter as Newsletter,
+    array_agg(r.name) as Rollen, 
+    p.is_aktiv
+FROM 
+    person p
+JOIN 
+    public.adresse a ON a.a_id = p.adresse_fk
+LEFT JOIN 
+    public.person_mannschaft pm ON pm.person_fk = p.p_id
+LEFT JOIN 
+    public.mannschaft m ON m.m_id = pm.mannschaft_fk 
+LEFT JOIN 
+    public.mitgliedsbeitrag mb ON mb.m_id = p.mitgliedsbeitrag_fk
+LEFT JOIN 
+    public.mitgliedbeitrag_info mi ON mi.mi_id = mb.mitgliedsbeitrag_typ_fk
+JOIN 
+    public.person_rolle pr ON p.p_id = pr.p_fk
+JOIN 
+    public.rolle r ON r.r_id = pr.r_fk
+WHERE 
+    r.name = 'Eltern'
+GROUP BY 
+    p.p_id, a.street, a.hausnummer, a.plz, a.ort, m.name, mi.summe, mb.bezahlt
+   order by p.p_id asc;
 `);
 
     if (rows) {
@@ -518,13 +678,19 @@ GROUP BY p.p_id, a.street, a.hausnummer, a.plz, a.ort, m.name, mb.summe, mb.beza
 
 const getMitgliedsbeitragDB = async (vorname, nachname, geburtsdatum) => {
   try {
+    //TODO GEHT NICHT bei Benjamin Stauf und 24.10.2003 --> Macht immer 25.10.2003 drauß
     const { rows } = await query(
       'select p.* from person p where p.vorname = $1 and p.nachname = $2 and p.geburtsdatum = $3;',
       [vorname, nachname, geburtsdatum],
     );
+    // const { rows } = await query(
+    //   'select p.* from person p where p.vorname = $1 and p.nachname = $2',
+    //   [vorname, nachname],
+    // );
+
+    console.log(rows);
 
     if (!rows[0]) return false;
-    console.log('Vorname: ' + rows[0].vorname);
 
     let res_player = await getPersonDB(rows[0].p_id);
     if (!res_player) return false;
@@ -576,6 +742,22 @@ const postSpendeDB = async (spendenInformation) => {
         }
       }
 
+      //Eintrag in SpendeTbl
+      const { rows: spendeRow } = await con.query(
+        `INSERT INTO spenden (fk_p_id, summe, summeanzeigen, webseiteanzeigen, finanzamtmelden) VALUES ($1, $2, $3, $4, $5) RETURNING s_id;`,
+        [
+          personVorhanden[0].p_id,
+          Number(spendenInformation.spendenwert.replace(',', '.')),
+          spendenInformation.show_spendenwert,
+          spendenInformation.show_on_web,
+          spendenInformation.finanzamt,
+        ],
+      );
+
+      if (!spendeRow[0]) {
+        throw new Error('Fehler bei Spende-INSERT');
+      }
+
       //Status ausgeben
       await con.query('COMMIT');
       return true;
@@ -620,6 +802,22 @@ const postSpendeDB = async (spendenInformation) => {
 
     if (!personRolle[0]) {
       throw new Error('Fehler bei PersonenRolle-INSERT');
+    }
+
+    //Eintrag in SpendeTbl
+    const { rows: spendeRow } = await con.query(
+      `INSERT INTO spenden (fk_p_id, summe, summeanzeigen, webseiteanzeigen, finanzamtmelden) VALUES ($1, $2, $3, $4, $5);`,
+      [
+        personRows[0].p_id,
+        Number(spendenInformation.spendenwert),
+        spendenInformation.show_spendenwert,
+        spendenInformation.show_on_web,
+        spendenInformation.finanzamt,
+      ],
+    );
+
+    if (!spendeRow[0]) {
+      throw new Error('Fehler bei Spende-INSERT');
     }
 
     //* Wenn alles gepasst hat
@@ -919,8 +1117,11 @@ LEFT JOIN
 GROUP BY 
     ev.v_id, ev."name", ev.selbst_erstellt, ev.short, ev.beschreibung;`);
 
-    if (rows[0]) return rows;
-    return false;
+    const { rows: newsletter } = await query(
+      'select count(p.newsletter) as newsletter from person p;',
+    );
+
+    return { verteiler: rows, newsletter: newsletter[0].newsletter };
   } catch (error) {
     console.log(error);
     throw new Error('Fehler bei Verteiler-SELECT');
@@ -931,14 +1132,16 @@ const getMannschaftenDB = async () => {
   try {
     const { rows } = await query(`SELECT m.m_id as MannschaftID,
        m.name as Mannschaftsname,
-       COUNT(DISTINCT CASE WHEN r.name = 'Spieler' THEN p.p_id END) as AnzahlSpieler,
-       COUNT(DISTINCT CASE WHEN r.name = 'Eltern' THEN p.p_id END) as AnzahlEltern
+       m.jahrgang as Jahrgang,
+       COALESCE(COUNT(DISTINCT CASE WHEN r.name = 'Spieler' THEN p.p_id END), 0) as AnzahlSpieler,
+       COALESCE(COUNT(DISTINCT CASE WHEN r.name = 'Eltern' THEN p.p_id END), 0) as AnzahlEltern
 FROM public.mannschaft m
-JOIN public.person_mannschaft pm ON m.m_id = pm.mannschaft_fk 
-JOIN public.person p ON p.p_id = pm.person_fk 
-JOIN public.person_rolle pr ON p.p_id = pr.p_fk
-JOIN public.rolle r ON r.r_id = pr.r_fk
-GROUP BY m.m_id, m.name;`);
+LEFT JOIN public.person_mannschaft pm ON m.m_id = pm.mannschaft_fk 
+LEFT JOIN public.person p ON p.p_id = pm.person_fk 
+LEFT JOIN public.person_rolle pr ON p.p_id = pr.p_fk
+LEFT JOIN public.rolle r ON r.r_id = pr.r_fk
+GROUP BY m.m_id, m.name, m.jahrgang
+ORDER BY m.m_id ASC;`);
 
     if (rows[0]) return rows;
     return false;
@@ -956,7 +1159,7 @@ const getMannschaftDB = async (id) => {
       `SELECT p.*,
        a.street, a.hausnummer, a.plz, a.ort,
        m.name as Mannschaftsname,
-       mb.summe as Mitgliederbeitragssumme, 
+       mi.summe as Mitgliederbeitragssumme, 
        mb.bezahlt as MitgliederbeitragssummeBezahlt,
        p.newsletter as Newsletter,
        array_agg(r.name) as Rollen
@@ -967,7 +1170,9 @@ JOIN public.mannschaft m ON m.m_id = pm.mannschaft_fk
 LEFT JOIN public.mitgliedsbeitrag mb ON mb.m_id = p.mitgliedsbeitrag_fk
 JOIN public.person_rolle pr ON p.p_id = pr.p_fk
 JOIN public.rolle r ON r.r_id = pr.r_fk
-WHERE m.m_id = $1
+join public.mitgliedbeitrag_info mi on mi.mi_id = mb.mitgliedsbeitrag_typ_fk
+WHERE m.m_id = $1 
+AND p.is_aktiv = true
 AND EXISTS (
     SELECT 1
     FROM public.person_rolle pr2
@@ -975,7 +1180,7 @@ AND EXISTS (
     WHERE pr2.p_fk = p.p_id
     AND r2.name = 'Spieler'
 )
-GROUP BY p.p_id, a.street, a.hausnummer, a.plz, a.ort, m.name, mb.summe, mb.bezahlt;`,
+GROUP BY p.p_id, a.street, a.hausnummer, a.plz, a.ort, m.name, mi.summe, mb.bezahlt;`,
       [id],
     );
 
@@ -987,18 +1192,19 @@ GROUP BY p.p_id, a.street, a.hausnummer, a.plz, a.ort, m.name, mb.summe, mb.beza
       `SELECT p.*,
        a.street, a.hausnummer, a.plz, a.ort,
        m.name as Mannschaftsname,
-       mb.summe as Mitgliederbeitragssumme, 
+
        mb.bezahlt as MitgliederbeitragssummeBezahlt,
        p.newsletter as Newsletter,
        array_agg(r.name) as Rollen
 FROM person p
 JOIN public.adresse a ON a.a_id = p.adresse_fk
 JOIN public.person_mannschaft pm ON pm.person_fk = p.p_id
-JOIN public.mannschaft m ON m.m_id = pm.mannschaft_fk 
+JOIN public.mannschaft m ON m.m_id = pm.mannschaft_fk
 LEFT JOIN public.mitgliedsbeitrag mb ON mb.m_id = p.mitgliedsbeitrag_fk
 JOIN public.person_rolle pr ON p.p_id = pr.p_fk
 JOIN public.rolle r ON r.r_id = pr.r_fk
-WHERE m.m_id = $1 
+WHERE m.m_id = $1
+AND p.is_aktiv = true
 AND EXISTS (
     SELECT 1
     FROM public.person_rolle pr2
@@ -1006,7 +1212,7 @@ AND EXISTS (
     WHERE pr2.p_fk = p.p_id
     AND r2.name = 'Eltern'
 )
-GROUP BY p.p_id, a.street, a.hausnummer, a.plz, a.ort, m.name, mb.summe, mb.bezahlt;`,
+GROUP BY p.p_id, a.street, a.hausnummer, a.plz, a.ort, m.name, mb.bezahlt;`,
       [id],
     );
 
@@ -1109,7 +1315,8 @@ LEFT JOIN
 LEFT JOIN 
     person p2 ON pe.p_fk = p2.p_id
 WHERE 
-    ev.v_id = $1
+    ev.v_id = $1 
+    AND p.is_aktiv = true
     AND (p.email IS NOT NULL OR p2.email IS NOT NULL)
 UNION
 SELECT DISTINCT   
@@ -1136,24 +1343,23 @@ WHERE
 const getOneVerteilerDB = async (id) => {
   try {
     const { rows } = await query(
-      `   
-  SELECT p.*,
+      `   SELECT p.*,
        a.street, a.hausnummer, a.plz, a.ort,
        COALESCE(m.name, null) as Mannschaftsname,
-       COALESCE(mb.summe, null) as Mitgliederbeitragssumme, 
+       COALESCE(mi.summe, null) as Mitgliederbeitragssumme,
        COALESCE(mb.bezahlt, null) as MitgliederbeitragssummeBezahlt,
        p.newsletter as Newsletter,
-       array_agg(r.name) as Rollen
+       array_agg(r.name) as Rollen,
+       p.is_aktiv
 FROM person p
 JOIN public.adresse a ON a.a_id = p.adresse_fk
 LEFT JOIN public.person_mannschaft pm ON pm.person_fk = p.p_id
-LEFT JOIN public.mannschaft m ON m.m_id = pm.mannschaft_fk 
+LEFT JOIN public.mannschaft m ON m.m_id = pm.mannschaft_fk
 LEFT JOIN public.mitgliedsbeitrag mb ON mb.m_id = p.mitgliedsbeitrag_fk
+    join public.mitgliedbeitrag_info mi on mi.mi_id = mb.mitgliedsbeitrag_typ_fk
 JOIN public.person_rolle pr ON p.p_id = pr.p_fk
 JOIN public.rolle r ON r.r_id = pr.r_fk
-LEFT JOIN public.person_email pe ON p.p_id = pe.p_fk 
-WHERE r.fk_email_verteiler = $1 OR pe.v_fk = $1
-GROUP BY p.p_id, a.street, a.hausnummer, a.plz, a.ort, m.name, mb.summe, mb.bezahlt;
+GROUP BY p.p_id, a.street, a.hausnummer, a.plz, a.ort, m.name, mi.summe, mb.bezahlt;
 `,
       [id],
     );
@@ -1218,25 +1424,27 @@ const patchSaisonkartenAbgeholtDB = async (id, abgeholt) => {
 
 const getAllMitgliedsbeitragDB = async () => {
   try {
-    const { rows } = await query(`  SELECT 
-    p.*, 
-    m.*, 
+    const { rows } = await query(` SELECT
+    p.*,
+    m.*,
     ma.*
-FROM 
+FROM
     person p
-INNER JOIN 
-    mitgliedsbeitrag m 
-ON 
-    p.mitgliedsbeitrag_fk = m.m_id 
-LEFT JOIN 
+INNER JOIN
+    mitgliedsbeitrag m
+ON
+    p.mitgliedsbeitrag_fk = m.m_id
+LEFT JOIN
     person_mannschaft pm
-ON 
-    p.p_id = pm.person_fk 
-LEFT JOIN 
+ON
+    p.p_id = pm.person_fk
+LEFT JOIN
     mannschaft ma
-ON 
+ON
     pm.mannschaft_fk = ma.m_id
-   where m.summe > 0;
+join public.mitgliedsbeitrag m2 on m2.m_id = p.mitgliedsbeitrag_fk
+join public.mitgliedbeitrag_info mi on mi.mi_id = m2.mitgliedsbeitrag_typ_fk
+   where mi.summe > 0 and p.is_aktiv = true;
 `);
 
     if (rows[0]) return rows;
@@ -1262,14 +1470,16 @@ const mitgliedbeitragStatsDB = async () => {
   try {
     const { rows } = await query(` WITH totals AS (
     SELECT
-        COALESCE(SUM(m.summe) FILTER (WHERE m.bezahlt = true), 0) AS total_amount_paid,
-        COALESCE(SUM(m.summe) FILTER (WHERE m.bezahlt = false), 0) AS total_amount_open,
-        COALESCE(SUM(m.summe), 0) AS total_amount,
+        COALESCE(SUM(mi.summe) FILTER (WHERE m.bezahlt = true), 0) AS total_amount_paid,
+        COALESCE(SUM(mi.summe) FILTER (WHERE m.bezahlt = false), 0) AS total_amount_open,
+        COALESCE(SUM(mi.summe), 0) AS total_amount,
         COUNT(*) AS total_fees,
         COUNT(*) FILTER (WHERE m.bezahlt = true) AS paid_fees,
         COUNT(*) FILTER (WHERE m.bezahlt = false) AS open_fees
     FROM
         mitgliedsbeitrag m
+    JOIN public.mitgliedbeitrag_info mi on mi.mi_id = m.mitgliedsbeitrag_typ_fk
+    JOIN public.mitgliedsbeitrag m2 on mi.mi_id = m2.mitgliedsbeitrag_typ_fk
 )
 SELECT
     total_amount_paid,
@@ -1284,6 +1494,162 @@ SELECT
 FROM
     totals;`);
     if (rows[0]) return rows;
+    return false;
+  } catch (error) {
+    console.log(error);
+    return false;
+  }
+};
+
+const deactivatePersonDB = async (id, status) => {
+  try {
+    await query('update person set is_aktiv = $1 where p_id = $2;', [status, id]);
+
+    if (!status) {
+      await query(
+        'insert into person_rolle (p_fk, r_fk) values ($1, (select r_id from rolle where name = $2));',
+        [id, 'Deaktiviert'],
+      );
+    } else {
+      await query(
+        'delete from person_rolle where p_fk = $1 and r_fk = (select r_id from rolle where name = $2);',
+        [id, 'Deaktiviert'],
+      );
+    }
+
+    return true;
+  } catch (error) {
+    console.log('Error: ', error);
+    return false;
+  }
+};
+
+const deletePersonDB = async (id) => {
+  try {
+    await query('delete from person where p_id = $1;', [id]);
+
+    return true;
+  } catch (error) {
+    console.log('Error: ', error);
+    return false;
+  }
+};
+
+const mitgliedsbeitragSummeDB = async () => {
+  try {
+    const { rows } = await query('Select * from mitgliedbeitrag_info order by mi_id;');
+
+    if (rows[0]) return rows;
+  } catch (error) {
+    console.log('Error: ', error);
+    return false;
+  }
+};
+
+const patch_mitgliedsbeitragSummeDB = async (summe_voll, summe_reduziert) => {
+  try {
+    await query('UPDATE mitgliedbeitrag_info SET summe = $1 WHERE mi_id = 1;', [summe_voll]);
+    await query('UPDATE mitgliedbeitrag_info SET summe = $1 WHERE mi_id = 2;', [summe_reduziert]);
+
+    return true;
+  } catch (error) {
+    console.log('Error: ', error);
+    return false;
+  }
+};
+
+const getUnassignedPlayersDB = async () => {
+  try {
+    const { rows } = await query(`SELECT p.*
+FROM person p
+LEFT JOIN person_mannschaft pm ON p.p_id = pm.person_fk 
+LEFT JOIN person_rolle pr ON p.p_id = pr.p_fk 
+LEFT JOIN rolle r ON pr.r_fk = r.r_id
+WHERE pm.mannschaft_fk IS NULL
+AND r.name IN ('Spieler');`);
+
+    if (rows[0]) return rows;
+    return [];
+  } catch (error) {
+    console.log(error);
+    return false;
+  }
+};
+
+const getUnassignedPlayersNumbersDB = async () => {
+  try {
+    const { rows } = await query(`SELECT COUNT(*)
+FROM person p
+LEFT JOIN person_mannschaft pm ON p.p_id = pm.person_fk 
+LEFT JOIN person_rolle pr ON p.p_id = pr.p_fk 
+LEFT JOIN rolle r ON pr.r_fk = r.r_id 
+WHERE pm.mannschaft_fk IS NULL
+AND r.name IN ('Spieler');`);
+
+    if (rows[0]) return rows;
+    return false;
+  } catch (error) {
+    console.log(error);
+    return false;
+  }
+};
+
+const assignPlayerDB = async (id, mannschaft) => {
+  const connection = await pool.connect();
+
+  try {
+    await connection.query('BEGIN');
+
+    //get parents
+    const { rows: parents } = await connection.query(
+      'select p.* from person p join spieler_eltern se on p.p_id = se.e_fk where se.s_fk = $1',
+      [id],
+    );
+
+    if (parents[0]) {
+      console.log('Eltern wurden gefunden');
+
+      for (const parent of parents) {
+        //insert into person_mannschaft
+        await connection.query(
+          'insert into person_mannschaft (person_fk, mannschaft_fk) values ($1, $2);',
+          [parent.p_id, mannschaft],
+        );
+      }
+    }
+
+    //insert into person_mannschaft
+    await connection.query(
+      'insert into person_mannschaft (person_fk, mannschaft_fk) values ($1, $2);',
+      [id, mannschaft],
+    );
+
+    await connection.query('COMMIT');
+    return true;
+  } catch (error) {
+    console.error(error);
+    await connection.query('ROLLBACK');
+    return false;
+  }
+};
+
+const newsletterEmailsDB = async () => {
+  try {
+    const { rows } = await query(`SELECT p.email from person p where p.newsletter = true;`);
+    if (rows[0]) return rows;
+
+    return false;
+  } catch (error) {
+    console.log(error);
+    return false;
+  }
+};
+
+const postSpielerElternMannschaftNeuZuweisenDB = async () => {
+  try {
+    const { rows } = await query(`SELECT spielerNeuerMannschaftZuweisen`);
+    if (rows[0]) return rows;
+
     return false;
   } catch (error) {
     console.log(error);
@@ -1321,4 +1687,13 @@ export {
   getAllMitgliedsbeitragDB,
   mitgliedbeitragBezahltDB,
   mitgliedbeitragStatsDB,
+  deactivatePersonDB,
+  deletePersonDB,
+  mitgliedsbeitragSummeDB,
+  patch_mitgliedsbeitragSummeDB,
+  getUnassignedPlayersDB,
+  getUnassignedPlayersNumbersDB,
+  assignPlayerDB,
+  newsletterEmailsDB,
+  postSpielerElternMannschaftNeuZuweisenDB,
 };

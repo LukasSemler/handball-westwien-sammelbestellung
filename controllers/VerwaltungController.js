@@ -28,17 +28,22 @@ import {
   mitgliedbeitragBezahltDB,
   mitgliedbeitragStatsDB,
   patchVerteilerDB,
+  deactivatePersonDB,
+  deletePersonDB,
+  mitgliedsbeitragSummeDB,
+  patch_mitgliedsbeitragSummeDB,
+  getUnassignedPlayersDB,
+  getUnassignedPlayersNumbersDB,
+  assignPlayerDB,
+  newsletterEmailsDB,
+  postSpielerElternMannschaftNeuZuweisenDB,
 } from '../models/VerwaltungModel.js';
 
 import { config } from 'dotenv';
-import fs from 'fs';
-import path from 'path';
-
 import Stripe from 'stripe';
 const stripe = new Stripe(process.env.STRIPE_API_KEY);
 
 import postmark from 'postmark';
-
 const emailClient = new postmark.ServerClient(process.env.postmarkToken);
 
 let saisonKarteOrderInfo;
@@ -130,6 +135,7 @@ const patchPerson = async (req, res) => {
     mitgliederbeitragssumme,
     mitgliederbeitragssummebezahlt,
     rollen,
+    uww_nummer,
   } = req.body;
 
   console.log(status);
@@ -153,6 +159,7 @@ const patchPerson = async (req, res) => {
     mitgliederbeitragssumme,
     mitgliederbeitragssummebezahlt,
     rollen,
+    uww_nummer,
   );
 
   console.log(req.body);
@@ -164,7 +171,7 @@ const patchPerson = async (req, res) => {
 };
 
 const postPerson = async (req, res) => {
-  console.log(req.body.parents);
+  console.log(req.body);
 
   //allgemeine Infos
   const {
@@ -173,6 +180,7 @@ const postPerson = async (req, res) => {
     email,
     telefonnummer,
     birthdate,
+    eintritt,
     street,
     houseNumber,
     postalCode,
@@ -196,6 +204,7 @@ const postPerson = async (req, res) => {
     email,
     telefonnummer,
     birthdate,
+    eintritt,
     newsletter,
     notes,
     parents,
@@ -251,21 +260,21 @@ const getMitgliedsbeitrag = async (req, res) => {
 
   let formatted = `${year}-${month}-${day}`;
 
+  console.log(vorname, nachname, formatted);
+
   let result = await getMitgliedsbeitragDB(vorname, nachname, formatted);
 
   if (result) {
     return res.status(200).json(result);
   }
 
-  return res.status(500).send('Server Error');
+  return res.status(400).send('Server Error');
 };
 
 // -----------------------------------------------------
 
 const spendePay = async (req, res) => {
   spendenInformation = req.body;
-
-  console.log(Number(spendenInformation.spendenwert.replace(',', '').replace('.', '')));
 
   //Stripe-Checkout fertigstellen
   const session = await stripe.checkout.sessions.create({
@@ -276,9 +285,11 @@ const spendePay = async (req, res) => {
         quantity: 1,
         price_data: {
           currency: 'eur',
-          unit_amount: spendenInformation.spendenwert.includes('.')
-            ? Number(spendenInformation.spendenwert.replace(',', '').replace('.', ''))
-            : Number(spendenInformation.spendenwert.replace(',', '').replace('.', '')) * 100,
+          unit_amount:
+            spendenInformation.spendenwert.includes('.') ||
+            spendenInformation.spendenwert.includes(',')
+              ? Number(spendenInformation.spendenwert.replace(',', '').replace('.', ''))
+              : Number(spendenInformation.spendenwert.replace(',', '').replace('.', '')) * 100,
           product_data: {
             name: 'Spende',
             tax_code: 'txcd_90000001',
@@ -289,14 +300,18 @@ const spendePay = async (req, res) => {
     automatic_tax: { enabled: true },
     mode: 'payment',
     success_url: `${
-      process.env.SERVER_DEVMODE
-        ? `http://localhost:${process.env.SERVER_PORT}`
-        : `https://handball-westwien-sammelbestellung.onrender.com`
+      process.env.SERVER_TESTMODE === 'false'
+        ? process.env.SERVER_DEVMODE
+          ? `http://localhost:${process.env.SERVER_PORT}`
+          : `https://handball-westwien-sammelbestellung.onrender.com`
+        : 'https://handball-westwien-sammelbestellung-test.onrender.com'
     }/spendePaySuccess?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${
-      process.env.SERVER_DEVMODE
-        ? `http://localhost:${process.env.SERVER_PORT}`
-        : `https://handball-westwien-sammelbestellung.onrender.com`
+      process.env.SERVER_TESTMODE === 'false'
+        ? process.env.SERVER_DEVMODE
+          ? `http://localhost:${process.env.SERVER_PORT}`
+          : `https://handball-westwien-sammelbestellung.onrender.com`
+        : 'https://handball-westwien-sammelbestellung-test.onrender.com'
     }/spendePayFailed?session_id={CHECKOUT_SESSION_ID}`,
     automatic_tax: { enabled: true },
   });
@@ -306,8 +321,6 @@ const spendePay = async (req, res) => {
 };
 
 const spendePaySuccess = async (req, res) => {
-  console.log('Spende erfolgreich Success!!!');
-
   //Customer bekommen
   const session = await stripe.checkout.sessions.retrieve(req.query.session_id);
 
@@ -343,20 +356,22 @@ const spendePaySuccess = async (req, res) => {
         .status(200)
         .redirect(
           `${
-            process.env.SERVER_DEVMODE
-              ? `http://localhost:${process.env.SERVER_PORT}`
-              : `https://handball-westwien-sammelbestellung.onrender.com`
+            process.env.SERVER_TESTMODE === 'false'
+              ? process.env.SERVER_DEVMODE
+                ? `http://localhost:${process.env.SERVER_PORT}`
+                : `https://handball-westwien-sammelbestellung.onrender.com`
+              : 'https://handball-westwien-sammelbestellung-test.onrender.com'
           }/#/orderconfirmation?confirmationType=Spende`,
         );
 
     res
-      .status(500)
+      .status(400)
       .send(
         'Fehler beim Speichern der Spende in der Datenbank aufgetreten (VerwaltungsController -> spendeSuccess())',
       );
   } else {
     //Wenn Kauf bei Stripe nicht erfolgreich
-    res.status(500).send('<h1>Leider ist beim Spenden ein Fehler aufgetreten (spendeSuccess)</h1>');
+    res.status(400).send('<h1>Leider ist beim Spenden ein Fehler aufgetreten (spendeSuccess)</h1>');
   }
 };
 
@@ -366,9 +381,11 @@ const spendePayFailed = async (req, res) => {
   console.log(req);
   res.redirect(
     `${
-      process.env.SERVER_DEVMODE
-        ? `http://localhost:${process.env.SERVER_PORT}`
-        : `https://handball-westwien-sammelbestellung.onrender.com`
+      process.env.SERVER_TESTMODE === 'false'
+        ? process.env.SERVER_DEVMODE
+          ? `http://localhost:${process.env.SERVER_PORT}`
+          : `https://handball-westwien-sammelbestellung.onrender.com`
+        : 'https://handball-westwien-sammelbestellung-test.onrender.com'
     }/#/ordercancellation?confirmationType=Spende`,
   );
 };
@@ -414,14 +431,18 @@ const orderTicket = async (req, res) => {
     line_items: buyKarteList,
     mode: 'payment',
     success_url: `${
-      process.env.SERVER_DEVMODE
-        ? `http://localhost:${process.env.SERVER_PORT}`
-        : `https://handball-westwien-sammelbestellung.onrender.com`
+      process.env.SERVER_TESTMODE === 'false'
+        ? process.env.SERVER_DEVMODE
+          ? `http://localhost:${process.env.SERVER_PORT}`
+          : `https://handball-westwien-sammelbestellung.onrender.com`
+        : 'https://handball-westwien-sammelbestellung-test.onrender.com'
     }/SaisonkartePaySuccess?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${
-      process.env.SERVER_DEVMODE
-        ? `http://localhost:${process.env.SERVER_PORT}`
-        : `https://handball-westwien-sammelbestellung.onrender.com`
+      process.env.SERVER_TESTMODE === 'false'
+        ? process.env.SERVER_DEVMODE
+          ? `http://localhost:${process.env.SERVER_PORT}`
+          : `https://handball-westwien-sammelbestellung.onrender.com`
+        : 'https://handball-westwien-sammelbestellung-test.onrender.com'
     }/SaisonkartePayFailed?session_id={CHECKOUT_SESSION_ID}`,
     automatic_tax: { enabled: true },
   });
@@ -496,9 +517,11 @@ const saisonkartePaySuccess = async (req, res) => {
         //Orderinformationen wieder löschen (Speicher freigeben)
         return res.redirect(
           `${
-            process.env.SERVER_DEVMODE
-              ? `http://localhost:${process.env.SERVER_PORT}`
-              : `https://handball-westwien-sammelbestellung.onrender.com`
+            process.env.SERVER_TESTMODE === 'false'
+              ? process.env.SERVER_DEVMODE
+                ? `http://localhost:${process.env.SERVER_PORT}`
+                : `https://handball-westwien-sammelbestellung.onrender.com`
+              : 'https://handball-westwien-sammelbestellung-test.onrender.com'
           }/#/orderconfirmation?confirmationType=Saisonkarte`,
         );
       }
@@ -521,9 +544,11 @@ const saisonkartePayFailed = async (req, res) => {
   console.log('Payment Failed!!!');
   res.redirect(
     `${
-      process.env.SERVER_DEVMODE
-        ? `http://localhost:${process.env.SERVER_PORT}`
-        : `https://handball-westwien-sammelbestellung.onrender.com`
+      process.env.SERVER_TESTMODE === 'false'
+        ? process.env.SERVER_DEVMODE
+          ? `http://localhost:${process.env.SERVER_PORT}`
+          : `https://handball-westwien-sammelbestellung.onrender.com`
+        : 'https://handball-westwien-sammelbestellung-test.onrender.com'
     }/#/ordercancellation?confirmationType=Produktkauf`,
   );
 };
@@ -633,7 +658,7 @@ const mitgliedbeitragBezahlt = async (req, res) => {
 const mitgliedsbeitragBezahlen = async (req, res) => {
   const { vorname, nachname, email, mitgliederbeitragssumme } = req.body;
 
-  console.log(vorname, nachname, email, mitgliederbeitragssumme)
+  console.log(vorname, nachname, email, mitgliederbeitragssumme);
 
   //Email senden
   const emailSendenResult = await emailClient.sendEmailWithTemplate({
@@ -662,6 +687,78 @@ const mitgliedsbeitragBezahlen = async (req, res) => {
 
 const mitgliedbeitragStats = async (req, res) => {
   const result = await mitgliedbeitragStatsDB();
+
+  if (result) return res.status(200).json(result);
+  return res.status(500).send('Internal Server Error');
+};
+
+const deactivatePerson = async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  const result = await deactivatePersonDB(id, status);
+
+  if (result) return res.status(200).json('Person erfolgreich deaktiviert');
+  return res.status(500).send('Internal Server Error');
+};
+
+const deletePerson = async (req, res) => {
+  const { id } = req.params;
+
+  const result = await deletePersonDB(id);
+
+  if (result) return res.status(200).send('Person wurde erfolgreich gelöscht');
+  return res.status(400).send('Fehler beim Löschen der Person');
+};
+
+const mitgliedsbeitragSumme = async (req, res) => {
+  const result = await mitgliedsbeitragSummeDB();
+
+  if (result) return res.status(200).json(result);
+  return res.status(500).send('Internal Server Error');
+};
+
+const patch_mitgliedsbeitragSumme = async (req, res) => {
+  const { summe_voll, summe_reduziert } = req.body;
+
+  const result = await patch_mitgliedsbeitragSummeDB(summe_voll, summe_reduziert);
+
+  if (result) return res.status(200).send('Summe wurde erfolgreich geändert');
+  return res.status(500).send('Internal Server Error');
+};
+
+const getUnassignedPlayers = async (req, res) => {
+  const result = await getUnassignedPlayersDB();
+
+  if (result) return res.status(200).json(result);
+  return res.status(500).send('Internal Server Error');
+};
+
+const getUnassignedPlayersNumbers = async (req, res) => {
+  const result = await getUnassignedPlayersNumbersDB();
+
+  if (result) return res.status(200).json(result);
+  return res.status(500).send('Internal Server Error');
+};
+
+const assignPlayer = async (req, res) => {
+  const { id } = req.params;
+  const { mannschaft } = req.body;
+
+  const result = await assignPlayerDB(id, mannschaft);
+
+  if (result) return res.status(200).send('Spieler erfolgreich zugewiesen');
+  return res.status(500).send('Internal Server Error');
+};
+
+const newsletterEmails = async (req, res) => {
+  const result = await newsletterEmailsDB();
+
+  if (result) return res.status(200).json(result);
+  return res.status(500).send('Internal Server Error');
+};
+
+const postSpielerElternMannschaftNeuZuweisen = async (req, res) => {
+  const result = await postSpielerElternMannschaftNeuZuweisenDB();
 
   if (result) return res.status(200).json(result);
   return res.status(500).send('Internal Server Error');
@@ -703,4 +800,13 @@ export {
   mitgliedbeitragStats,
   saisonkartePaySuccess,
   saisonkartePayFailed,
+  deactivatePerson,
+  deletePerson,
+  mitgliedsbeitragSumme,
+  patch_mitgliedsbeitragSumme,
+  getUnassignedPlayers,
+  getUnassignedPlayersNumbers,
+  assignPlayer,
+  newsletterEmails,
+  postSpielerElternMannschaftNeuZuweisen,
 };

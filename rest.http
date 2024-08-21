@@ -97,14 +97,15 @@ POST http://localhost:2410/person
 Content-Type: application/json
 
 {
-  "vorname": "Neuer",
-  "nachname": "Spieler",
-  "email": "neuer.spieler@gmail.com",
-  "telefonnummer": "066039134256",
-  "birthdate": "2012-07-06T16:27:00.000Z",
-  "street": "Mariahilferstrasse",
-  "houseNumber": "1",
-  "postalCode": "1060",
+  "vorname": "Seppo",
+  "nachname": "Frimmel",
+  "email": "",
+  "telefonnummer": "",
+  "birthdate": "2015-08-13T18:30:00.000Z",
+  "eintritt": "2024-08-10T18:31:00.000Z",
+  "street": "Linzerstrasse",
+  "houseNumber": "111",
+  "postalCode": "1140",
   "city": "Wien",
   "newsletter": true,
   "notes": "",
@@ -112,53 +113,48 @@ Content-Type: application/json
     "Spieler"
   ],
   "player_infos": {
-    "mitgliederbeitragssumme": "370",
-    "mannschaft": "U12"
+    "mitgliederbeitragssumme": "250",
+    "mannschaft": {
+      "mannschaftid": 1,
+      "mannschaftsname": "Mondweg",
+      "jahrgang": null,
+      "anzahlspieler": "1",
+      "anzahleltern": "1"
+    }
   },
   "parents": [
     {
-      "vorname": "Neue",
-      "nachname": "Mama",
-      "email": "neue.mutter@gmail.com",
-      "telefonnummer": "067012343454",
-      "birthdate": "1972-01-14T17:27:00.000Z",
+      "vorname": "Roman",
+      "nachname": "Frimmel",
+      "email": "roman@gmail.com",
+      "telefonnummer": "06603914245",
+      "birthdate": null,
       "same_adress": true,
-      "street": "Mariahilferstrasse",
-      "houseNumber": "1",
-      "postalCode": "1060",
+      "street": "Linzerstrasse",
+      "houseNumber": "111",
+      "postalCode": "1140",
       "city": "Wien",
       "newsletter": true,
-      "notes": "Hilft beim Buffet",
+      "notes": "",
       "rollen": [
-        "Eltern",
-        "Buffet"
+        "Eltern"
       ]
     },
     {
-      "p_id": 14,
-      "vorname": "Thomas",
-      "nachname": "Ruzek",
-      "email": "t.ruzek@handball-westwien.com",
-      "geburtsdatum": "2000-07-27T22:00:00.000Z",
-      "adresse_fk": 10,
-      "mannschaft_fk": null,
-      "eintrittsdatum": "2024-07-12T22:00:00.000Z",
-      "telefonnummer": "06601423567",
-      "uww_nummer": null,
-      "mitgliedsbeitrag_fk": null,
-      "status": "Finanzen + Sammelbestellung",
+      "vorname": "Birgit",
+      "nachname": "Frimmel",
+      "email": "frimmel@gmail.com",
+      "telefonnummer": "06603914245",
+      "birthdate": null,
+      "same_adress": true,
+      "street": "Linzerstrasse",
+      "houseNumber": "111",
+      "postalCode": "1140",
+      "city": "Wien",
       "newsletter": true,
-      "street": "Keine Ahung",
-      "hausnummer": "111",
-      "plz": "1140",
-      "ort": "Wien",
-      "mannschaftsname": null,
-      "mitgliederbeitragssumme": null,
-      "mitgliederbeitragssummebezahlt": null,
+      "notes": "",
       "rollen": [
-        "Eltern",
-        "Sponsoren",
-        "Vorstand"
+        "Eltern"
       ]
     }
   ]
@@ -194,12 +190,12 @@ Content-Type: application/json
   "vorname": "Lukas",
   "nachname": "Semler",
   "email": "lukas.semler@gmail.com",
-  "telefonnummer": "+43 660 3914245",
-  "strasse": "Venusweg",
+  "telefonnummer": "06603914245",
+  "strasse": "Venusweg 11",
   "hausnr": "11",
   "plz": "1140",
   "ort": "Wien",
-  "geburtsdatum": "2004-01-03T19:41:00.000Z",
+  "geburtsdatum": "",
   "spendenwert": "",
   "saisonkarten": {
     "id": 1,
@@ -209,8 +205,16 @@ Content-Type: application/json
     "verification": false
   },
   "anzahl": {
-    "id": 1,
-    "name": "1"
+    "id": 2,
+    "name": "2"
   },
-  "summe": 140
+  "summe": 280
 }
+
+#######
+
+GET http://localhost:2410/mannschaften
+
+
+####
+GET http://localhost:2410/MitgliedsbeitragAll

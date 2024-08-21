@@ -1,9 +1,5 @@
 import { query, pool } from '../DB/index.js';
-import postmark from 'postmark';
 
-const emailToken = process.env.postmarkToken;
-console.log(emailToken);
-const emailClient = new postmark.ServerClient('313fee21-10d9-4d96-b3d4-75ea5a35ab20');
 
 const getProductsDB = async () => {
   const { rows } = await query(`SELECT
