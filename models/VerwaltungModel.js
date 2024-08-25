@@ -1657,6 +1657,27 @@ const postSpielerElternMannschaftNeuZuweisenDB = async () => {
   }
 };
 
+const getEinnahmenDB = async () => {
+  try {
+    const { rows: rowsSpenden } = await query('select sum(s.summe) as summen from spenden s');
+    const { rows: rowsSaisonkarte } = await query(
+      'select sum(s.summe) as summen from saisonkarte s',
+    );
+    const { rows: rowsOrder } = await query(
+      `select sum(o.sum) as summen from "order" o where o.fk_s_id = (select max(s.s_id) from sammelbestellung s where s.status = 'over');`,
+    );
+
+    return [
+      { type: 'Spenden', summe: rowsSpenden[0].summen },
+      { type: 'Saisonkarten', summe: rowsSaisonkarte[0].summen },
+      { type: 'Sammelbestellungen', summe: rowsOrder[0].summen },
+    ];
+  } catch (error) {
+    console.log(error);
+    return false;
+  }
+};
+
 export {
   getRolesDB,
   postRolesDB,
@@ -1696,4 +1717,5 @@ export {
   assignPlayerDB,
   newsletterEmailsDB,
   postSpielerElternMannschaftNeuZuweisenDB,
+  getEinnahmenDB,
 };

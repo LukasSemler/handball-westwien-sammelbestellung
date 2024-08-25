@@ -37,6 +37,7 @@ import {
   assignPlayerDB,
   newsletterEmailsDB,
   postSpielerElternMannschaftNeuZuweisenDB,
+  getEinnahmenDB,
 } from '../models/VerwaltungModel.js';
 
 import { config } from 'dotenv';
@@ -764,6 +765,13 @@ const postSpielerElternMannschaftNeuZuweisen = async (req, res) => {
   return res.status(500).send('Internal Server Error');
 };
 
+const getEinnahmen = async (req, res) => {
+  const result = await getEinnahmenDB();
+
+  if (result) return res.status(200).json(result);
+  return res.status(500).send('Internal Server Error');
+};
+
 export {
   getRoles,
   postRoles,
@@ -809,4 +817,5 @@ export {
   assignPlayer,
   newsletterEmails,
   postSpielerElternMannschaftNeuZuweisen,
+  getEinnahmen,
 };

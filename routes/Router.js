@@ -67,6 +67,7 @@ import {
   assignPlayer,
   newsletterEmails,
   postSpielerElternMannschaftNeuZuweisen,
+  getEinnahmen,
 } from '../controllers/VerwaltungController.js';
 
 const router = express.Router();
@@ -184,5 +185,7 @@ router.get('/mannschaften/:id', asyncHandler(getMannschaft));
 router.get('/unassignedPlayers', asyncHandler(getUnassignedPlayers));
 router.get('/unassignedPlayersNumbers', asyncHandler(getUnassignedPlayersNumbers));
 router.patch('/assignPlayer/:id', asyncHandler(assignPlayer));
+
+router.get('/einnahmen', asyncHandler(getEinnahmen));
 
 export default router;
