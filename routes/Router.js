@@ -68,6 +68,7 @@ import {
   newsletterEmails,
   postSpielerElternMannschaftNeuZuweisen,
   getEinnahmen,
+  getSpender
 } from '../controllers/VerwaltungController.js';
 
 const router = express.Router();
@@ -187,5 +188,6 @@ router.get('/unassignedPlayersNumbers', asyncHandler(getUnassignedPlayersNumbers
 router.patch('/assignPlayer/:id', asyncHandler(assignPlayer));
 
 router.get('/einnahmen', asyncHandler(getEinnahmen));
+router.get('/spender', asyncHandler(getSpender));
 
 export default router;

@@ -167,7 +167,7 @@ GROUP BY
   }
 };
 
-const patchPersonDB = async (
+const patchPersonDB = async ({
   p_id,
   vorname,
   nachname,
@@ -187,7 +187,7 @@ const patchPersonDB = async (
   mitgliederbeitragssummebezahlt,
   rollen,
   uww_nummer,
-) => {
+}) => {
   const query = await pool.connect();
   try {
     //Start transaction
@@ -210,9 +210,7 @@ WHERE person.p_id = $1;`,
     );
 
     //Dont has a role -> not possible
-    if (!roles[0]) {
-      return false;
-    }
+    if (!roles[0]) throw new Error('Fehler bei adresseUpdated');
 
     //Check if roles are the same
     let rolesChanged = false;
@@ -249,9 +247,15 @@ WHERE person.p_id = $1;`,
       [vorname, nachname, email, telefonnummer, newsletter, status, p_id, uww_nummer],
     );
 
-    if (!personUpdated[0]) {
-      return false;
-    }
+    if (!personUpdated[0]) throw new Error('Fehler bei PersonUpdated');
+
+    // Update adress
+    const { rows: adressUpdated } = await query.query(
+      'UPDATE adresse SET street = $1, ort = $2, plz = $3 WHERE a_id = $4 RETURNING *',
+      [street, ort, plz, person.rows[0].adresse_fk],
+    );
+
+    if (!adressUpdated[0]) throw new Error('Fehler bei adresseUpdated');
 
     //Person is a player, change mitgliedsbeitrag
     if (mitgliedsbeitrag_fk) {
@@ -276,6 +280,7 @@ WHERE m.m_id = (
     console.error(error);
     await query.query('ROLLBACK');
     await query.release();
+    return false;
   }
 };
 
@@ -315,7 +320,7 @@ const postPersonDB = async (
 
     if (!address[0]) {
       console.log(chalk.red('Error at address-INSERT'));
-      return false;
+      throw new Error('Error at address-INSERT --> postPersonDB');
     }
 
     console.log(chalk.green('Address inserted'));
@@ -352,7 +357,7 @@ const postPersonDB = async (
 
         if (!mitgliedsbeitrag[0]) {
           console.log(chalk.red('ERROR at Mitgliedsbeitrag-INSERT'));
-          return false;
+          throw new Error('ERROR at Mitgliedsbeitrag-INSERT --> postPersonDB');
         }
 
         mitgliedsbeitrag_fk = mitgliedsbeitrag[0].m_id;
@@ -366,7 +371,7 @@ const postPersonDB = async (
 
         if (!mitgliedsbeitrag[0]) {
           console.log(chalk.red('ERROR at Mitgliedsbeitrag-INSERT'));
-          return false;
+          throw new Error('ERROR at Mitgliedsbeitrag-INSERT --> postPersonDB');
         }
 
         mitgliedsbeitrag_fk = mitgliedsbeitrag[0].m_id;
@@ -389,7 +394,7 @@ const postPersonDB = async (
 
       if (!mannschaft[0]) {
         console.log(chalk.red('ERROR at Mannschaft-INSERT'));
-        return false;
+        throw new Error('ERROR at Mannschaft-INSERT --> postPersonDB');
       }
 
       console.log(chalk.green('Mannschaft inserted'));
@@ -401,9 +406,13 @@ const postPersonDB = async (
 
     console.log(chalk.blue('INSERT person'));
 
+    console.log(chalk.green(`Eintritt: ${eintritt ?? eintritt}`));
+
     //Insert person
     const { rows: person } = await con.query(
-      `insert into person (vorname, nachname, email, telefonnummer, geburtsdatum, adresse_fk, newsletter, status, mitgliedsbeitrag_fk, eintrittsdatum) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) returning *;`,
+      `insert into person (vorname, nachname, email, telefonnummer, geburtsdatum, adresse_fk, newsletter, status,
+       mitgliedsbeitrag_fk, eintrittsdatum) 
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) returning *;`,
       [
         vorname,
         nachname,
@@ -414,13 +423,13 @@ const postPersonDB = async (
         newsletter,
         notizen,
         mitgliedsbeitrag_fk ? mitgliedsbeitrag_fk : null,
-        eintritt,
+        eintritt ? eintritt : null,
       ],
     );
 
     if (!person[0]) {
       console.log(chalk.red('ERROR at Person-INSERT'));
-      return false;
+      throw new Error('ERROR at Person-INSERT --> postPersonDB');
     }
 
     console.log(chalk.green('Person inserted'));
@@ -434,7 +443,7 @@ const postPersonDB = async (
 
       if (!role[0]) {
         console.log(chalk.red('ERROR at Role-INSERT'));
-        return false;
+        throw new Error('ERROR at Role-INSERT --> postPersonDB');
       }
 
       //Insert role
@@ -678,11 +687,11 @@ GROUP BY
 
 const getMitgliedsbeitragDB = async (vorname, nachname, geburtsdatum) => {
   try {
-    //TODO GEHT NICHT bei Benjamin Stauf und 24.10.2003 --> Macht immer 25.10.2003 drauß
     const { rows } = await query(
       'select p.* from person p where p.vorname = $1 and p.nachname = $2 and p.geburtsdatum = $3;',
       [vorname, nachname, geburtsdatum],
     );
+    //! Obsolete
     // const { rows } = await query(
     //   'select p.* from person p where p.vorname = $1 and p.nachname = $2',
     //   [vorname, nachname],
@@ -696,7 +705,7 @@ const getMitgliedsbeitragDB = async (vorname, nachname, geburtsdatum) => {
     if (!res_player) return false;
 
     let res_parents = await getParentsDB(rows[0].p_id);
-    if (!res_parents) console.log('Spieler über 18Jahre');
+    if (!res_parents) console.log('Spieler über 18Jahre, keine Eltern eingetragen');
 
     return { player: res_player, parents: res_parents ? res_parents : [] };
   } catch (error) {
@@ -712,7 +721,7 @@ const postSpendeDB = async (spendenInformation) => {
     //Start transaction
     await con.query('BEGIN');
 
-    //Insert address
+    //Check if person is already in DB
     const { rows: personVorhanden } = await con.query(
       'SELECT p_id from person WHERE vorname = $1 AND nachname = $2;',
       [spendenInformation.vorname, spendenInformation.nachname],
@@ -753,6 +762,11 @@ const postSpendeDB = async (spendenInformation) => {
           spendenInformation.finanzamt,
         ],
       );
+
+      await con.query('Update person set geburtsdatum = $1 where p_id = $2', [
+        spendenInformation.geburtsdatum,
+        personVorhanden[0].p_id,
+      ]);
 
       if (!spendeRow[0]) {
         throw new Error('Fehler bei Spende-INSERT');
@@ -1018,6 +1032,8 @@ const orderTicketDB = async (
     );
 
     if (person[0]) {
+      console.log(chalk.blueBright('Person already exists'));
+
       //Person already exists, check if he already has the role Saisonkarte
       const { rows: rolle } = await connection.query(
         "select * from person_rolle pr where pr.r_fk = (select r.r_id from rolle r where r.name = 'Saisonkarte') and pr.p_fk = $1 ",
@@ -1042,8 +1058,10 @@ const orderTicketDB = async (
         throw new Error('Fehler bei Saisonkarte-INSERT');
       }
 
-      console.log('Person und Saisonkarte erfolgreich eingetragen');
+      console.log('Saisonkarte erfolgreich eingetragen');
     } else {
+      console.log(chalk.blueBright('Person does not exist'));
+
       //person does not exist
       await postPersonDB(
         strasse,
@@ -1057,7 +1075,8 @@ const orderTicketDB = async (
         email,
         telefonnummer,
         null,
-        true,
+        null,
+        false,
         null,
         [],
       );
@@ -1510,6 +1529,8 @@ const deactivatePersonDB = async (id, status) => {
         'insert into person_rolle (p_fk, r_fk) values ($1, (select r_id from rolle where name = $2));',
         [id, 'Deaktiviert'],
       );
+
+      await query('delete from person_mannschaft where person_fk = $1;', [id]);
     } else {
       await query(
         'delete from person_rolle where p_fk = $1 and r_fk = (select r_id from rolle where name = $2);',
@@ -1565,7 +1586,7 @@ FROM person p
 LEFT JOIN person_mannschaft pm ON p.p_id = pm.person_fk 
 LEFT JOIN person_rolle pr ON p.p_id = pr.p_fk 
 LEFT JOIN rolle r ON pr.r_fk = r.r_id
-WHERE pm.mannschaft_fk IS NULL
+WHERE pm.mannschaft_fk IS NULL AND is_aktiv = true
 AND r.name IN ('Spieler');`);
 
     if (rows[0]) return rows;
@@ -1583,7 +1604,7 @@ FROM person p
 LEFT JOIN person_mannschaft pm ON p.p_id = pm.person_fk 
 LEFT JOIN person_rolle pr ON p.p_id = pr.p_fk 
 LEFT JOIN rolle r ON pr.r_fk = r.r_id 
-WHERE pm.mannschaft_fk IS NULL
+WHERE pm.mannschaft_fk IS NULL and is_aktiv = true
 AND r.name IN ('Spieler');`);
 
     if (rows[0]) return rows;
@@ -1678,6 +1699,19 @@ const getEinnahmenDB = async () => {
   }
 };
 
+const getSpenderDB = async () => {
+  try {
+    const { rows } = await query(
+      'select p.vorname, p.nachname, p.email, s.summe , s.summeanzeigen, s.webseiteanzeigen, s.finanzamtmelden, s.datum, p.geburtsdatum, a.street, a.hausnummer, a.plz, a.ort from person p join spenden s on s.fk_p_id = p.p_id join adresse a on a.a_id = p.adresse_fk',
+    );
+
+    if (rows[0]) return rows;
+    return false;
+  } catch (error) {
+    console.log(error);
+    return false;
+  }
+};
 export {
   getRolesDB,
   postRolesDB,
@@ -1718,4 +1752,5 @@ export {
   newsletterEmailsDB,
   postSpielerElternMannschaftNeuZuweisenDB,
   getEinnahmenDB,
+  getSpenderDB,
 };

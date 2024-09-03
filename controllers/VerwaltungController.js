@@ -38,6 +38,7 @@ import {
   newsletterEmailsDB,
   postSpielerElternMannschaftNeuZuweisenDB,
   getEinnahmenDB,
+  getSpenderDB,
 } from '../models/VerwaltungModel.js';
 
 import { config } from 'dotenv';
@@ -117,58 +118,14 @@ const getPerson = async (req, res) => {
 };
 
 const patchPerson = async (req, res) => {
-  const {
-    p_id,
-    vorname,
-    nachname,
-    email,
-    adresse_fk,
-    mannschaft_fk,
-    telefonnummer,
-    mitgliedsbeitrag_fk,
-    status,
-    newsletter,
-    street,
-    hausnummer,
-    plz,
-    ort,
-    mannschaftsname,
-    mitgliederbeitragssumme,
-    mitgliederbeitragssummebezahlt,
-    rollen,
-    uww_nummer,
-  } = req.body;
-
-  console.log(status);
-
-  const result = await patchPersonDB(
-    p_id,
-    vorname,
-    nachname,
-    email,
-    adresse_fk,
-    mannschaft_fk,
-    telefonnummer,
-    mitgliedsbeitrag_fk,
-    status,
-    newsletter,
-    street,
-    hausnummer,
-    plz,
-    ort,
-    mannschaftsname,
-    mitgliederbeitragssumme,
-    mitgliederbeitragssummebezahlt,
-    rollen,
-    uww_nummer,
-  );
+  const result = await patchPersonDB(req.body);
 
   console.log(req.body);
 
   if (result) {
     return res.status(200).send('Person wurde geändert');
   }
-  res.status(500).send('Server Error');
+  res.status(400).send('Server Error');
 };
 
 const postPerson = async (req, res) => {
@@ -254,16 +211,13 @@ const getMitgliedsbeitrag = async (req, res) => {
   let { vorname, nachname, geburtsdatum } = req.query;
 
   let date = new Date(geburtsdatum);
-
   let year = date.getFullYear();
   let month = (date.getMonth() + 1).toString().padStart(2, '0'); // Months are zero-indexed
   let day = date.getDate().toString().padStart(2, '0');
+  let formattedDate = `${year}-${month}-${day}`;
 
-  let formatted = `${year}-${month}-${day}`;
-
-  console.log(vorname, nachname, formatted);
-
-  let result = await getMitgliedsbeitragDB(vorname, nachname, formatted);
+  console.log(vorname, nachname, formattedDate);
+  let result = await getMitgliedsbeitragDB(vorname, nachname, formattedDate);
 
   if (result) {
     return res.status(200).json(result);
@@ -326,8 +280,14 @@ const spendePaySuccess = async (req, res) => {
   const session = await stripe.checkout.sessions.retrieve(req.query.session_id);
 
   if (session.status == 'complete') {
+    console.log(spendenInformation);
+
     //Spendendaten in der Datenbank speichern
     const dbEintragResult = await postSpendeDB(spendenInformation);
+
+    console.log(spendenInformation);
+
+    const birthdate = new Date(spendenInformation.geburtsdatum);
 
     //Email senden
     const emailSendenResult = emailClient.sendEmailWithTemplate({
@@ -336,7 +296,13 @@ const spendePaySuccess = async (req, res) => {
       TemplateAlias: 'spendenbestaetigung',
       TemplateModel: {
         name: `${spendenInformation.vorname} ${spendenInformation.nachname}`,
-        spendenwert: spendenInformation.spendenwert,
+        spendenwert: `${spendenInformation.spendenwert}€`,
+        adress: `${spendenInformation.strasse} ${spendenInformation.hausnr}, ${spendenInformation.plz} ${spendenInformation.ort}`,
+        email: spendenInformation.email,
+        birthdate: `${birthdate.getDate()}.${birthdate.getMonth() + 1}.${birthdate.getFullYear()}`,
+        show_spende: spendenInformation.show_on_web ? 'Ja' : 'Nein',
+        show_summe: spendenInformation.show_spendenwert ? 'Ja' : 'Nein',
+        finanzamt_text: spendenInformation.finanzamt ? 'Hier kommt Finanzamt Text...' : '',
       },
       Attachments: [
         {
@@ -657,19 +623,23 @@ const mitgliedbeitragBezahlt = async (req, res) => {
 };
 
 const mitgliedsbeitragBezahlen = async (req, res) => {
-  const { vorname, nachname, email, mitgliederbeitragssumme } = req.body;
+  const { vorname, nachname, email, mitgliederbeitragssumme } = req.body.player;
+  const parents = req.body.parents;
 
-  console.log(vorname, nachname, email, mitgliederbeitragssumme);
+  let email_parents;
+  parents.forEach((elem) => (email_parents += elem.email + ', '));
+  email_parents + email;
+
+  console.log(email_parents);
 
   //Email senden
   const emailSendenResult = await emailClient.sendEmailWithTemplate({
     From: 't.ruzek@handball-westwien.at',
-    To: email,
-    TemplateAlias: 'mitgliedsbeitragBezahlen',
+    To: email_parents,
+    TemplateAlias: 'mitgliedsbeitrag',
     TemplateModel: {
-      vorname,
-      nachname,
-      mitgliederbeitragssumme,
+      spieler_name: `${vorname} ${nachname}`,
+      summe: mitgliederbeitragssumme,
     },
     Attachments: [
       {
@@ -682,8 +652,16 @@ const mitgliedsbeitragBezahlen = async (req, res) => {
     ],
   });
 
-  if (emailSendenResult) return res.status(200).json('Mitgliedsbeitrag-Mail erfolgreich versandt');
-  return res.status(400).send('Fehler beim versenden der Mitgliedsbeitrag-Mail');
+  if (emailSendenResult) {
+    //Weiterleitung zur
+    return res.status(200).send('Mitgliedsbeitrag-Mail erfolgreich versandt!');
+  } else {
+    return res
+      .status(400)
+      .send(
+        'Fehler beim Bezahlen des Mitgliedsbeitrages (VerwaltungsController -> mitgliedsbeitragBezahlen())',
+      );
+  }
 };
 
 const mitgliedbeitragStats = async (req, res) => {
@@ -772,6 +750,13 @@ const getEinnahmen = async (req, res) => {
   return res.status(500).send('Internal Server Error');
 };
 
+const getSpender = async (req, res) => {
+  const result = await getSpenderDB();
+
+  if (result) return res.status(200).json(result);
+  return res.status(500).send('Internal Server Error');
+};
+
 export {
   getRoles,
   postRoles,
@@ -818,4 +803,5 @@ export {
   newsletterEmails,
   postSpielerElternMannschaftNeuZuweisen,
   getEinnahmen,
+  getSpender,
 };

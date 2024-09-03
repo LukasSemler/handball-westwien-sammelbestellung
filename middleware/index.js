@@ -20,15 +20,21 @@ export const ErrorHandler = (err, req, res, next) => {
   const error_time = `${time.getHours()}:${time.getMinutes()} - ${time.getDay()}.${time.getMonth()}.${time.getFullYear()}`;
 
   //Email senden
-  const emailSendenResult = emailClient.sendEmailWithTemplate({
-    From: 't.ruzek@handball-westwien.at',
-    To: 'office@pixelia.at, lukas.semler@gmail.com',
-    TemplateAlias: 'Backendserver-Error',
-    TemplateModel: {
-      error_zeit: error_time,
-      error_messagetext: err.toString(),
-    },
-  });
+  try {
+    const emailSendenResult = emailClient.sendEmailWithTemplate({
+      From: 't.ruzek@handball-westwien.at',
+      To: 'office@pixelia.at, lukas.semler@gmail.com',
+      TemplateAlias: 'Backendserver-Error',
+      TemplateModel: {
+        error_zeit: error_time,
+        error_messagetext: err.toString(),
+      },
+    });
+  } catch {
+    console.log(
+      'Es konnte keine Fehlermail verschicken werden(FEHLER IN DER MIDDLEWARE) --> ErrorHandler',
+    );
+  }
 
   res.status(500).send('Am Backend-Server ist ein Fehler aufgetreten');
 };
