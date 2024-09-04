@@ -254,20 +254,10 @@ const spendePay = async (req, res) => {
     ],
     automatic_tax: { enabled: true },
     mode: 'payment',
-    success_url: `${
-      process.env.SERVER_TESTMODE === 'false'
-        ? process.env.SERVER_DEVMODE
-          ? `http://localhost:${process.env.SERVER_PORT}`
-          : `https://handball-westwien-sammelbestellung.onrender.com`
-        : 'https://handball-westwien-sammelbestellung-test.onrender.com'
-    }/spendePaySuccess?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${
-      process.env.SERVER_TESTMODE === 'false'
-        ? process.env.SERVER_DEVMODE
-          ? `http://localhost:${process.env.SERVER_PORT}`
-          : `https://handball-westwien-sammelbestellung.onrender.com`
-        : 'https://handball-westwien-sammelbestellung-test.onrender.com'
-    }/spendePayFailed?session_id={CHECKOUT_SESSION_ID}`,
+    success_url:
+      'https://handball-westwien-sammelbestellung.onrender.com/spendePaySuccess?session_id={CHECKOUT_SESSION_ID}',
+    cancel_url:
+      'https://handball-westwien-sammelbestellung.onrender.com/spendePayFailed?session_id={CHECKOUT_SESSION_ID}',
     automatic_tax: { enabled: true },
   });
 
@@ -302,7 +292,9 @@ const spendePaySuccess = async (req, res) => {
         birthdate: `${birthdate.getDate()}.${birthdate.getMonth() + 1}.${birthdate.getFullYear()}`,
         show_spende: spendenInformation.show_on_web ? 'Ja' : 'Nein',
         show_summe: spendenInformation.show_spendenwert ? 'Ja' : 'Nein',
-        finanzamt_text: spendenInformation.finanzamt ? 'Wir werden bis Ende Februar eine Meldung über die Höhe deiner Spende an das Finanzamt machen. Deine Spende wird dann automatisch als Sonderausgabe in deiner steuerlichen Veranlagung berücksichtigt.' : '',
+        finanzamt_text: spendenInformation.finanzamt
+          ? 'Wir werden bis Ende Februar eine Meldung über die Höhe deiner Spende an das Finanzamt machen. Deine Spende wird dann automatisch als Sonderausgabe in deiner steuerlichen Veranlagung berücksichtigt.'
+          : '',
       },
       Attachments: [
         {
@@ -322,13 +314,7 @@ const spendePaySuccess = async (req, res) => {
       return res
         .status(200)
         .redirect(
-          `${
-            process.env.SERVER_TESTMODE === 'false'
-              ? process.env.SERVER_DEVMODE
-                ? `http://localhost:${process.env.SERVER_PORT}`
-                : `https://handball-westwien-sammelbestellung.onrender.com`
-              : 'https://handball-westwien-sammelbestellung-test.onrender.com'
-          }/#/orderconfirmation?confirmationType=Spende`,
+          'https://handball-westwien-sammelbestellung.onrender.com/#/orderconfirmation?confirmationType=Spende',
         );
 
     res
@@ -347,13 +333,7 @@ const spendePayFailed = async (req, res) => {
   spendenInformation = null; //Orderinformationen wieder löschen (Speicher freigeben)
   console.log(req);
   res.redirect(
-    `${
-      process.env.SERVER_TESTMODE === 'false'
-        ? process.env.SERVER_DEVMODE
-          ? `http://localhost:${process.env.SERVER_PORT}`
-          : `https://handball-westwien-sammelbestellung.onrender.com`
-        : 'https://handball-westwien-sammelbestellung-test.onrender.com'
-    }/#/ordercancellation?confirmationType=Spende`,
+    'https://handball-westwien-sammelbestellung.onrender.com/#/ordercancellation?confirmationType=Spende',
   );
 };
 
@@ -397,20 +377,8 @@ const orderTicket = async (req, res) => {
     submit_type: 'pay',
     line_items: buyKarteList,
     mode: 'payment',
-    success_url: `${
-      process.env.SERVER_TESTMODE === 'false'
-        ? process.env.SERVER_DEVMODE
-          ? `http://localhost:${process.env.SERVER_PORT}`
-          : `https://handball-westwien-sammelbestellung.onrender.com`
-        : 'https://handball-westwien-sammelbestellung-test.onrender.com'
-    }/SaisonkartePaySuccess?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${
-      process.env.SERVER_TESTMODE === 'false'
-        ? process.env.SERVER_DEVMODE
-          ? `http://localhost:${process.env.SERVER_PORT}`
-          : `https://handball-westwien-sammelbestellung.onrender.com`
-        : 'https://handball-westwien-sammelbestellung-test.onrender.com'
-    }/SaisonkartePayFailed?session_id={CHECKOUT_SESSION_ID}`,
+    success_url: `https://handball-westwien-sammelbestellung.onrender.com/SaisonkartePaySuccess?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `https://handball-westwien-sammelbestellung.onrender.com/SaisonkartePayFailed?session_id={CHECKOUT_SESSION_ID}`,
     automatic_tax: { enabled: true },
   });
 
@@ -483,13 +451,7 @@ const saisonkartePaySuccess = async (req, res) => {
       if (emailSendenResult) {
         //Orderinformationen wieder löschen (Speicher freigeben)
         return res.redirect(
-          `${
-            process.env.SERVER_TESTMODE === 'false'
-              ? process.env.SERVER_DEVMODE
-                ? `http://localhost:${process.env.SERVER_PORT}`
-                : `https://handball-westwien-sammelbestellung.onrender.com`
-              : 'https://handball-westwien-sammelbestellung-test.onrender.com'
-          }/#/orderconfirmation?confirmationType=Saisonkarte`,
+          `https://handball-westwien-sammelbestellung.onrender.com/#/orderconfirmation?confirmationType=Saisonkarte`,
         );
       }
     }
@@ -510,13 +472,7 @@ const saisonkartePayFailed = async (req, res) => {
 
   console.log('Payment Failed!!!');
   res.redirect(
-    `${
-      process.env.SERVER_TESTMODE === 'false'
-        ? process.env.SERVER_DEVMODE
-          ? `http://localhost:${process.env.SERVER_PORT}`
-          : `https://handball-westwien-sammelbestellung.onrender.com`
-        : 'https://handball-westwien-sammelbestellung-test.onrender.com'
-    }/#/ordercancellation?confirmationType=Produktkauf`,
+    `https://handball-westwien-sammelbestellung.onrender.com/#/ordercancellation?confirmationType=Produktkauf`,
   );
 };
 
@@ -630,11 +586,11 @@ const mitgliedsbeitragBezahlen = async (req, res) => {
   parents.forEach((elem) => (email_parents += elem.email + ', '));
   email_parents + email;
 
-  if(email){
+  if (email) {
     email_parents = email;
     email_parents += ', ';
   }
-  
+
   for (const p of parents) {
     email_parents += p.email + ', ';
   }
