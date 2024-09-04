@@ -1032,8 +1032,6 @@ const orderTicketDB = async (
     );
 
     if (person[0]) {
-      console.log(chalk.blueBright('Person already exists'));
-
       //Person already exists, check if he already has the role Saisonkarte
       const { rows: rolle } = await connection.query(
         "select * from person_rolle pr where pr.r_fk = (select r.r_id from rolle r where r.name = 'Saisonkarte') and pr.p_fk = $1 ",
@@ -1060,8 +1058,6 @@ const orderTicketDB = async (
 
       console.log('Saisonkarte erfolgreich eingetragen');
     } else {
-      console.log(chalk.blueBright('Person does not exist'));
-
       //person does not exist
       await postPersonDB(
         strasse,
@@ -1074,7 +1070,6 @@ const orderTicketDB = async (
         nachname,
         email,
         telefonnummer,
-        null,
         null,
         false,
         null,
@@ -1443,10 +1438,12 @@ const patchSaisonkartenAbgeholtDB = async (id, abgeholt) => {
 
 const getAllMitgliedsbeitragDB = async () => {
   try {
-    const { rows } = await query(` SELECT
-    p.*,
-    m.*,
-    ma.*
+    const { rows } = await query(`
+ SELECT
+    p.p_id, p.vorname, p.nachname, p.email, p.telefonnummer, 
+    m.m_id, m.bezahlt, m.bezahlt_am,
+    ma.name as Mannschaft,
+    mi.summe
 FROM
     person p
 INNER JOIN
@@ -1487,32 +1484,11 @@ const mitgliedbeitragBezahltDB = async (id, bezahlt) => {
 
 const mitgliedbeitragStatsDB = async () => {
   try {
-    const { rows } = await query(` WITH totals AS (
-    SELECT
-        COALESCE(SUM(mi.summe) FILTER (WHERE m.bezahlt = true), 0) AS total_amount_paid,
-        COALESCE(SUM(mi.summe) FILTER (WHERE m.bezahlt = false), 0) AS total_amount_open,
-        COALESCE(SUM(mi.summe), 0) AS total_amount,
-        COUNT(*) AS total_fees,
-        COUNT(*) FILTER (WHERE m.bezahlt = true) AS paid_fees,
-        COUNT(*) FILTER (WHERE m.bezahlt = false) AS open_fees
-    FROM
-        mitgliedsbeitrag m
-    JOIN public.mitgliedbeitrag_info mi on mi.mi_id = m.mitgliedsbeitrag_typ_fk
-    JOIN public.mitgliedsbeitrag m2 on mi.mi_id = m2.mitgliedsbeitrag_typ_fk
-)
-SELECT
-    total_amount_paid,
-    total_amount_open,
-    total_fees,
-    paid_fees,
-    open_fees,
-    CASE
-        WHEN total_amount = 0 THEN 0
-        ELSE (total_amount_paid * 100.0 / total_amount)
-    END AS percentage_paid
-FROM
-    totals;`);
-    if (rows[0]) return rows;
+    const { rows:bezahlt } = await query(`SELECT COUNT(m.m_id) FROM mitgliedsbeitrag m WHERE m.bezahlt = true AND m.mitgliedsbeitrag_typ_fk != 3;`);
+    const { rows:unbezahlt } = await query(`SELECT COUNT(m.m_id) FROM mitgliedsbeitrag m WHERE m.bezahlt = false AND m.mitgliedsbeitrag_typ_fk != 3;`);
+    const { rows:summe_bezahlt } = await query(`select sum(mi.summe) from mitgliedsbeitrag m2 join mitgliedbeitrag_info mi on m2.mitgliedsbeitrag_typ_fk = mi.mi_id where m2.bezahlt = true and m2.mitgliedsbeitrag_typ_fk != 3;`);
+
+    if (bezahlt[0] && unbezahlt[0] && summe_bezahlt[0] ) return {bezahlt:bezahlt[0].count, unbezahlt:unbezahlt[0].count, summe_bezahlt:summe_bezahlt[0].sum};
     return false;
   } catch (error) {
     console.log(error);

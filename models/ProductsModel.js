@@ -241,12 +241,16 @@ const exportOrdersDB = async (von, bis) => {
 
   //leer
   if (von != null && bis != null) {
+
+    console.log('von und bis');
+
     const { rows } = await query(
       `SELECT p.productnumber                                        as Artikelnummer,
        p.name                                                 as "Bezeichnung Artikel",
        (SELECT name from sizes where oD.fk_size = sizes.s_id) as "Groesse",
        oD.anzahl                                              as "Anzahl",
        p.price                                                as "Preis",
+         o.sum												                          as "summe bezahlt",
        concat(o."vornameEltern", ' ', o."nachnameEltern")     as "Eltern",
        concat(o."vornameSpieler", ' ', o."nachnameSpieler")   as "Spieler",
        o.email                                                as "E-Mail",
@@ -266,12 +270,16 @@ order by o.o_id`,
 
     erg = rows;
   } else if (!von && bis) {
+
+    console.log('nur bis');
+
     const { rows } = await query(
       `SELECT p.productnumber                                        as Artikelnummer,
        p.name                                                 as "Bezeichnung Artikel",
        (SELECT name from sizes where oD.fk_size = sizes.s_id) as "Groesse",
        oD.anzahl                                              as "Anzahl",
        p.price                                                as "Preis",
+         o.sum												                          as "summe bezahlt",
        concat(o."vornameEltern", ' ', o."nachnameEltern")     as "Eltern",
        concat(o."vornameSpieler", ' ', o."nachnameSpieler")   as "Spieler",
        o.email                                                as "E-Mail",
@@ -291,6 +299,9 @@ order by o.o_id`,
 
     erg = rows;
   } else {
+
+    console.log('nix');
+    
     const { rows } = await query(
       `SELECT p.productnumber                                        as Artikelnummer,
        p.productnumberkempa                                   as ArtikelnummerKempa,
@@ -298,6 +309,7 @@ order by o.o_id`,
        (SELECT name from sizes where oD.fk_size = sizes.s_id) as "Groesse",
        oD.anzahl                                              as "Anzahl",
        p.price                                                as "Preis",
+         o.sum												                          as "summe bezahlt",
        concat(o."vornameEltern", ' ', o."nachnameEltern")     as "Eltern",
        concat(o."vornameSpieler", ' ', o."nachnameSpieler")   as "Spieler",
        o.email                                                as "E-Mail",

@@ -302,7 +302,7 @@ const spendePaySuccess = async (req, res) => {
         birthdate: `${birthdate.getDate()}.${birthdate.getMonth() + 1}.${birthdate.getFullYear()}`,
         show_spende: spendenInformation.show_on_web ? 'Ja' : 'Nein',
         show_summe: spendenInformation.show_spendenwert ? 'Ja' : 'Nein',
-        finanzamt_text: spendenInformation.finanzamt ? 'Hier kommt Finanzamt Text...' : '',
+        finanzamt_text: spendenInformation.finanzamt ? 'Wir werden bis Ende Februar eine Meldung über die Höhe deiner Spende an das Finanzamt machen. Deine Spende wird dann automatisch als Sonderausgabe in deiner steuerlichen Veranlagung berücksichtigt.' : '',
       },
       Attachments: [
         {
@@ -406,7 +406,7 @@ const orderTicket = async (req, res) => {
     }/SaisonkartePaySuccess?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${
       process.env.SERVER_TESTMODE === 'false'
-        ? process.env.SERVER_DEVMODE === 'development'
+        ? process.env.SERVER_DEVMODE
           ? `http://localhost:${process.env.SERVER_PORT}`
           : `https://handball-westwien-sammelbestellung.onrender.com`
         : 'https://handball-westwien-sammelbestellung-test.onrender.com'
@@ -512,7 +512,7 @@ const saisonkartePayFailed = async (req, res) => {
   res.redirect(
     `${
       process.env.SERVER_TESTMODE === 'false'
-        ? process.env.SERVER_DEVMODE === 'development'
+        ? process.env.SERVER_DEVMODE
           ? `http://localhost:${process.env.SERVER_PORT}`
           : `https://handball-westwien-sammelbestellung.onrender.com`
         : 'https://handball-westwien-sammelbestellung-test.onrender.com'
@@ -629,6 +629,15 @@ const mitgliedsbeitragBezahlen = async (req, res) => {
   let email_parents;
   parents.forEach((elem) => (email_parents += elem.email + ', '));
   email_parents + email;
+
+  if(email){
+    email_parents = email;
+    email_parents += ', ';
+  }
+  
+  for (const p of parents) {
+    email_parents += p.email + ', ';
+  }
 
   console.log(email_parents);
 
