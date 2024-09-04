@@ -313,9 +313,9 @@ const postPersonDB = async (
     console.log(chalk.blue('INSERT address'));
 
     //Insert address
-    const { rows: address } = await con.query(
-      'INSERT INTO adresse (street, hausnummer, plz, ort) VALUES ($1, $2, $3, $4) RETURNING a_id;',
-      [street, hausnummer, plz, ort],
+    const { rows: address } = await connection.query(
+      'insert into adresse (street, plz, ort) values ($1, $2, $3) returning *;',
+      [parent.strasse, parent.plz, parent.ort],
     );
 
     if (!address[0]) {
@@ -473,9 +473,9 @@ const postPersonDB = async (
             console.log(chalk.bgYellow('Person does not exist'));
             //person does not exist, create person
             //Insert address
-            const { rows: address } = await con.query(
-              'INSERT INTO adresse (street, hausnummer, plz, ort) VALUES ($1, $2, $3, $4) RETURNING a_id;',
-              [iterator.street, iterator.houseNumber, iterator.postalCode, iterator.city],
+            const { rows: address } = await connection.query(
+              'insert into adresse (street, plz, ort) values ($1, $2, $3) returning *;',
+              [parent.strasse, parent.plz, parent.ort],
             );
 
             if (!address[0]) {
@@ -779,10 +779,9 @@ const postSpendeDB = async (spendenInformation) => {
 
     //Spender eintragen
     const { rows: adresseRows } = await con.query(
-      'INSERT INTO adresse (street, hausnummer, plz, ort) VALUES ($1, $2, $3 ,$4) RETURNING a_id;',
+      'INSERT INTO adresse (street, plz, ort) VALUES ($1, $2, $3) RETURNING a_id;',
       [
-        spendenInformation.strasse,
-        spendenInformation.hausnr,
+        spendenInformation.strasse + ' ' + spendenInformation.hausnr,
         spendenInformation.plz,
         spendenInformation.ort,
       ],
@@ -1484,11 +1483,22 @@ const mitgliedbeitragBezahltDB = async (id, bezahlt) => {
 
 const mitgliedbeitragStatsDB = async () => {
   try {
-    const { rows:bezahlt } = await query(`SELECT COUNT(m.m_id) FROM mitgliedsbeitrag m WHERE m.bezahlt = true AND m.mitgliedsbeitrag_typ_fk != 3;`);
-    const { rows:unbezahlt } = await query(`SELECT COUNT(m.m_id) FROM mitgliedsbeitrag m WHERE m.bezahlt = false AND m.mitgliedsbeitrag_typ_fk != 3;`);
-    const { rows:summe_bezahlt } = await query(`select sum(mi.summe) from mitgliedsbeitrag m2 join mitgliedbeitrag_info mi on m2.mitgliedsbeitrag_typ_fk = mi.mi_id where m2.bezahlt = true and m2.mitgliedsbeitrag_typ_fk != 3;`);
+    const { rows: bezahlt } = await query(
+      `SELECT COUNT(m.m_id) FROM mitgliedsbeitrag m WHERE m.bezahlt = true AND m.mitgliedsbeitrag_typ_fk != 3;`,
+    );
+    const { rows: unbezahlt } = await query(
+      `SELECT COUNT(m.m_id) FROM mitgliedsbeitrag m WHERE m.bezahlt = false AND m.mitgliedsbeitrag_typ_fk != 3;`,
+    );
+    const { rows: summe_bezahlt } = await query(
+      `select sum(mi.summe) from mitgliedsbeitrag m2 join mitgliedbeitrag_info mi on m2.mitgliedsbeitrag_typ_fk = mi.mi_id where m2.bezahlt = true and m2.mitgliedsbeitrag_typ_fk != 3;`,
+    );
 
-    if (bezahlt[0] && unbezahlt[0] && summe_bezahlt[0] ) return {bezahlt:bezahlt[0].count, unbezahlt:unbezahlt[0].count, summe_bezahlt:summe_bezahlt[0].sum};
+    if (bezahlt[0] && unbezahlt[0] && summe_bezahlt[0])
+      return {
+        bezahlt: bezahlt[0].count,
+        unbezahlt: unbezahlt[0].count,
+        summe_bezahlt: summe_bezahlt[0].sum,
+      };
     return false;
   } catch (error) {
     console.log(error);
