@@ -313,7 +313,7 @@ const postPersonDB = async (
     console.log(chalk.blue('INSERT address'));
 
     //Insert address
-    const { rows: address } = await connection.query(
+    const { rows: address } = await con.query(
       'insert into adresse (street, plz, ort) values ($1, $2, $3) returning *;',
       [parent.strasse, parent.plz, parent.ort],
     );
@@ -473,7 +473,7 @@ const postPersonDB = async (
             console.log(chalk.bgYellow('Person does not exist'));
             //person does not exist, create person
             //Insert address
-            const { rows: address } = await connection.query(
+            const { rows: address } = await con.query(
               'insert into adresse (street, plz, ort) values ($1, $2, $3) returning *;',
               [parent.strasse, parent.plz, parent.ort],
             );
