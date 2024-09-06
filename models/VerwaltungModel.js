@@ -314,8 +314,8 @@ const postPersonDB = async (
 
     //Insert address
     const { rows: address } = await con.query(
-      'insert into adresse (street, plz, ort) values ($1, $2, $3) returning *;',
-      [parent.strasse, parent.plz, parent.ort],
+      'INSERT INTO adresse (street, plz, ort) VALUES ($1, $2, $3) RETURNING a_id;',
+      [street + ' ' + hausnummer, plz, ort],
     );
 
     if (!address[0]) {
@@ -474,8 +474,8 @@ const postPersonDB = async (
             //person does not exist, create person
             //Insert address
             const { rows: address } = await con.query(
-              'insert into adresse (street, plz, ort) values ($1, $2, $3) returning *;',
-              [parent.strasse, parent.plz, parent.ort],
+              'INSERT INTO adresse (street, plz, ort) VALUES ($1, $2, $3) RETURNING a_id;',
+              [iterator.street + ' ' + iterator.houseNumber, iterator.postalCode, iterator.city],
             );
 
             if (!address[0]) {
