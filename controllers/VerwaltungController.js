@@ -269,6 +269,8 @@ const spendePaySuccess = async (req, res) => {
   //Customer bekommen
   const session = await stripe.checkout.sessions.retrieve(req.query.session_id);
 
+  console.log('Stripe Session ', session);
+
   if (session.status == 'complete') {
     console.log(spendenInformation);
 
