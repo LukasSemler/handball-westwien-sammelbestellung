@@ -231,6 +231,8 @@ const getMitgliedsbeitrag = async (req, res) => {
 const spendePay = async (req, res) => {
   spendenInformation = req.body;
 
+  console.log('spendenInformation ', spendenInformation);
+
   //Stripe-Checkout fertigstellen
   const session = await stripe.checkout.sessions.create({
     payment_method_types: ['card', 'eps'],
