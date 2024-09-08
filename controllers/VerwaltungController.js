@@ -619,6 +619,8 @@ const mitgliedsbeitragBezahlen = async (req, res) => {
     ],
   });
 
+  console.log('EMAIL RESULT ', emailSendenResult);
+
   if (emailSendenResult) {
     //Weiterleitung zur
     return res.status(200).send('Mitgliedsbeitrag-Mail erfolgreich versandt!');
