@@ -254,10 +254,8 @@ const spendePay = async (req, res) => {
     ],
     automatic_tax: { enabled: true },
     mode: 'payment',
-    success_url:
-      'https://handball-westwien-sammelbestellung.onrender.com/spendePaySuccess?session_id={CHECKOUT_SESSION_ID}',
-    cancel_url:
-      'https://handball-westwien-sammelbestellung.onrender.com/spendePayFailed?session_id={CHECKOUT_SESSION_ID}',
+    success_url: `https://handball-westwien-sammelbestellung.onrender.com/spendePaySuccess?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `https://handball-westwien-sammelbestellung.onrender.com/spendePayFailed?session_id={CHECKOUT_SESSION_ID}`,
     automatic_tax: { enabled: true },
   });
 
@@ -314,13 +312,13 @@ const spendePaySuccess = async (req, res) => {
       return res
         .status(200)
         .redirect(
-          'https://handball-westwien-sammelbestellung.onrender.com/#/orderconfirmation?confirmationType=Spende',
+          `https://handball-westwien-sammelbestellung.onrender.com/#/orderconfirmation?confirmationType=Spende`,
         );
 
     res
       .status(400)
-      .send(
-        'Fehler beim Speichern der Spende in der Datenbank aufgetreten (VerwaltungsController -> spendeSuccess())',
+      .redirect(
+        `https://handball-westwien-sammelbestellung.onrender.com/#/ordercancellation?confirmationType=Spende`,
       );
   } else {
     //Wenn Kauf bei Stripe nicht erfolgreich
@@ -333,7 +331,7 @@ const spendePayFailed = async (req, res) => {
   spendenInformation = null; //Orderinformationen wieder löschen (Speicher freigeben)
   console.log(req);
   res.redirect(
-    'https://handball-westwien-sammelbestellung.onrender.com/#/ordercancellation?confirmationType=Spende',
+    `https://handball-westwien-sammelbestellung.onrender.com/#/ordercancellation?confirmationType=Spende`,
   );
 };
 
@@ -451,7 +449,13 @@ const saisonkartePaySuccess = async (req, res) => {
       if (emailSendenResult) {
         //Orderinformationen wieder löschen (Speicher freigeben)
         return res.redirect(
-          `https://handball-westwien-sammelbestellung.onrender.com/#/orderconfirmation?confirmationType=Saisonkarte`,
+          `${
+            process.env.SERVER_TESTMODE === 'false'
+              ? process.env.SERVER_DEVMODE
+                ? `http://localhost:${process.env.SERVER_PORT}`
+                : `https://handball-westwien-sammelbestellung.onrender.com`
+              : 'https://handball-westwien-sammelbestellung-test.onrender.com'
+          }/#/orderconfirmation?confirmationType=Saisonkarte`,
         );
       }
     }
@@ -459,8 +463,14 @@ const saisonkartePaySuccess = async (req, res) => {
     //WENN FEHLER
     res
       .status(500)
-      .send(
-        'Fehler beim Speichern der Bestellung in der Datenbank aufgetreten (ProductsController -> paySuccess())',
+      .redirect(
+        `${
+          process.env.SERVER_TESTMODE === 'false'
+            ? process.env.SERVER_DEVMODE
+              ? `http://localhost:${process.env.SERVER_PORT}`
+              : `https://handball-westwien-sammelbestellung.onrender.com`
+            : 'https://handball-westwien-sammelbestellung-test.onrender.com'
+        }/#/ordercancellation?confirmationType=Saisonkarte`,
       );
   } else {
     res.send('<h1>Leider ist beim Zahlen ein Fehler aufgetreten (paySuccess)</h1>');
@@ -579,28 +589,20 @@ const mitgliedbeitragBezahlt = async (req, res) => {
 };
 
 const mitgliedsbeitragBezahlen = async (req, res) => {
-  const { vorname, nachname, email, mitgliederbeitragssumme } = req.body.player;
-  const parents = req.body.parents;
+  let { vorname, nachname, email, mitgliederbeitragssumme } = req.body.player;
 
-  let email_parents;
-  parents.forEach((elem) => (email_parents += elem.email + ', '));
-  email_parents + email;
-
-  if (email) {
-    email_parents = email;
-    email_parents += ', ';
+  //Empängermails zusammenbauen => 'benni@test.at, lukas@test.at, ...'
+  let emailEmpfaenger = ''; // Eltern und Spieler um die Mail an alle zu senden
+  if (email != null && email != '') emailEmpfaenger += email; //Spielermail falls existiert
+  for (const parent of req.body.parents) {
+    if (parent.email != null && parent.email != '') emailEmpfaenger += ',' + parent.email;
   }
-
-  for (const p of parents) {
-    email_parents += p.email + ', ';
-  }
-
-  console.log(email_parents);
+  console.log(emailEmpfaenger);
 
   //Email senden
-  const emailSendenResult = await emailClient.sendEmailWithTemplate({
+  let emailSendenResult = await emailClient.sendEmailWithTemplate({
     From: 't.ruzek@handball-westwien.at',
-    To: email_parents,
+    To: emailEmpfaenger,
     TemplateAlias: 'mitgliedsbeitrag',
     TemplateModel: {
       spieler_name: `${vorname} ${nachname}`,
