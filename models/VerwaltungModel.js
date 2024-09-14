@@ -763,6 +763,7 @@ const postSpendeDB = async (spendenInformation) => {
         ],
       );
 
+      //UPDATE Person Geburtsdatum
       await con.query('Update person set geburtsdatum = $1 where p_id = $2', [
         spendenInformation.geburtsdatum,
         personVorhanden[0].p_id,
@@ -777,11 +778,13 @@ const postSpendeDB = async (spendenInformation) => {
       return true;
     }
 
-    //Spender eintragen
+
+    //* Neue Person --> Kompletter Eintrag der Person + Spendeninfos
+    //Adresse des Spenders eitnragen
     const { rows: adresseRows } = await con.query(
       'INSERT INTO adresse (street, plz, ort) VALUES ($1, $2, $3) RETURNING a_id;',
       [
-        spendenInformation.strasse + ' ' + spendenInformation.hausnr,
+        spendenInformation.strasse,
         spendenInformation.plz,
         spendenInformation.ort,
       ],
@@ -790,10 +793,11 @@ const postSpendeDB = async (spendenInformation) => {
     if (!adresseRows[0]) {
       throw new Error('Fehler bei Adresse-INSERT');
     }
-
+ 
+    //Person eintragen, weil noch nicht vorhaden
     const { rows: personRows } = await con.query(
-      `INSERT INTO person (vorname, nachname, email, geburtsdatum, adresse_fk, mannschaft_fk, eintrittsdatum, telefonnummer, uww_nummer, mitgliedsbeitrag_fk, status, newsletter) 
-      VALUES ($1, $2, $3, $4, $5, null, now(), $6, null, null, null, true) RETURNING p_id;`,
+      `INSERT INTO person (vorname, nachname, email, geburtsdatum, adresse_fk, eintrittsdatum, telefonnummer, uww_nummer, mitgliedsbeitrag_fk, status, newsletter) 
+      VALUES ($1, $2, $3, $4, $5, now(), $6, null, null, null, true) RETURNING p_id;`,
       [
         spendenInformation.vorname,
         spendenInformation.nachname,
@@ -808,6 +812,7 @@ const postSpendeDB = async (spendenInformation) => {
       throw new Error('Fehler bei Person-INSERT');
     }
 
+    //Rolle 'Spender' nachtragen
     const { rows: personRolle } = await con.query(
       `INSERT INTO person_rolle (p_fk, r_fk) VALUES ($1, (SELECT r_id FROM rolle WHERE name = 'Spender')) RETURNING pr_id;`,
       [personRows[0].p_id],
@@ -817,9 +822,9 @@ const postSpendeDB = async (spendenInformation) => {
       throw new Error('Fehler bei PersonenRolle-INSERT');
     }
 
-    //Eintrag in SpendeTbl
+    //Spende in SpendeTbl eintragen
     const { rows: spendeRow } = await con.query(
-      `INSERT INTO spenden (fk_p_id, summe, summeanzeigen, webseiteanzeigen, finanzamtmelden) VALUES ($1, $2, $3, $4, $5);`,
+      `INSERT INTO spenden (fk_p_id, summe, summeanzeigen, webseiteanzeigen, finanzamtmelden) VALUES ($1, $2, $3, $4, $5) RETURNING s_id;`,
       [
         personRows[0].p_id,
         Number(spendenInformation.spendenwert),
